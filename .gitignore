@@ -20,6 +20,9 @@
 # production
 /build
 
+#ideas y diseños
+/ideas
+
 # misc
 .DS_Store
 *.pem
