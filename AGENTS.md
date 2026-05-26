@@ -1,5 +1,18 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# Descripción del Proyecto
+App-web para un sistema de inventarios de utensilios para cocinas industriales, con un diseño moderno y colores claros, con dos paneles Admin e Inventarios, con apoyo a los filtros de búsqueda por medio de Escáner de Código de Barras y Comandos de Voz
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+
+# Agents Rules
+-   Cada función nueva debe incluir una linea con el nombre de la acción en Español.
+-   Todas las variables y funciones deben escribirse en camelCase
+-   No uses snake_case
+-   la carpeta /docs con las información completa del proyecto
+-   Los Diseños siempre deben adaptarse en movil y web /Responsive Design
+-   Ideas de Diseños en la carpeta /ideas
+
+
+##  Stack Tecnológico
+
+- **Frontend**: Next.js - React
+- **Backend**: Supabase (Auth, PostgreSQL, Storage)
+- **PWA**: Workbox (configurado)
