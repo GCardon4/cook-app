@@ -49,6 +49,7 @@ Este esquema soporta múltiples clientes que presentan visualizaciones y clics c
 | ---------- | ------- | -------------- |
 | id         | int8    | PK             |
 | name       | text    | Nombre         |
+| doc        | numeric | Cédula         |
 | phone      | numeric | Contacto       |
 | created_at | date    | Fecha Creación |
 

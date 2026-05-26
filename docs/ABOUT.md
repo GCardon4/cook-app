@@ -11,6 +11,7 @@ App-web para un sistema de inventarios de utensilios para cocinas industriales, 
 - CRUD completos de cocineros y utensilios
 - Estadísticas de inventario por colegio
 
+
 ---
 
 ### Arquitectura del Proyecto
@@ -57,7 +58,6 @@ src/
 - TaiwlindCSS
 
 ---
-
 ### Instalación
 
 
@@ -74,6 +74,5 @@ npm run dev
 ```
 
 ---
-
 ### Autor
 - Gustavo Cardona
