@@ -23,6 +23,9 @@
 #ideas y diseños
 /ideas
 
+# Logs
+/logs
+
 # misc
 .DS_Store
 *.pem
