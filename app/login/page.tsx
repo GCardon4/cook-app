@@ -1,0 +1,328 @@
+'use client'
+
+import { useActionState, useState } from 'react'
+import { accionLogin, type EstadoLogin } from './actions'
+
+// Tipos de panel disponibles en el sistema
+type TipoPanel = 'admin' | 'inventarios'
+
+interface ConfiguracionPanel {
+  tipo: TipoPanel
+  titulo: string
+  descripcion: string
+  icono: string
+}
+
+const paneles: ConfiguracionPanel[] = [
+  {
+    tipo: 'admin',
+    titulo: 'Administración',
+    descripcion: 'Gestión completa del sistema, colegios y cocineras',
+    icono: 'admin_panel_settings',
+  },
+  {
+    tipo: 'inventarios',
+    titulo: 'Inventarios',
+    descripcion: 'Control y seguimiento de utensilios de cocina',
+    icono: 'inventory_2',
+  },
+]
+
+export default function PaginaLogin() {
+  const [panelSeleccionado, setPanelSeleccionado] =
+    useState<TipoPanel>('inventarios')
+  const [mostrarContrasena, setMostrarContrasena] = useState(false)
+
+  const [estado, accion, estaCargando] = useActionState<EstadoLogin, FormData>(
+    accionLogin,
+    null
+  )
+
+  return (
+    <div className="min-h-screen flex flex-col md:flex-row bg-background">
+      {/* Panel izquierdo: Marca (solo desktop) */}
+      <div className="hidden md:flex md:w-[55%] relative flex-col justify-between p-12 overflow-hidden bg-primary">
+        {/* Patrón decorativo de fondo */}
+        <div
+          className="absolute inset-0 opacity-10"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle at 20% 50%, #ffffff 1px, transparent 1px), radial-gradient(circle at 80% 20%, #ffffff 1px, transparent 1px)',
+            backgroundSize: '60px 60px',
+          }}
+        />
+        <div
+          className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10"
+          style={{
+            background:
+              'radial-gradient(circle, #6bd8cb 0%, transparent 70%)',
+            transform: 'translate(30%, -30%)',
+          }}
+        />
+        <div
+          className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-10"
+          style={{
+            background:
+              'radial-gradient(circle, #6bd8cb 0%, transparent 70%)',
+            transform: 'translate(-30%, 30%)',
+          }}
+        />
+
+        {/* Encabezado de marca */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-16">
+            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+              <span className="material-symbols-outlined text-white text-2xl icon-fill">
+                soup_kitchen
+              </span>
+            </div>
+            <div>
+              <h1 className="text-white font-bold text-2xl tracking-tight leading-none">
+                KitchenLogix
+              </h1>
+              <p className="text-white/60 text-xs font-medium tracking-widest uppercase">
+                v1.0.0
+              </p>
+            </div>
+          </div>
+
+          <h2 className="text-white font-bold text-4xl leading-tight mb-4">
+            Sistema de Gestión
+            <br />
+            de Cocinas
+            <br />
+            Industriales
+          </h2>
+          <p className="text-white/70 text-lg leading-relaxed max-w-sm">
+            Control total del inventario de utensilios para cocinas
+            industriales. Eficiente, preciso y accesible desde cualquier
+            dispositivo.
+          </p>
+        </div>
+
+        {/* Características del sistema */}
+        <div className="relative z-10 space-y-4">
+          {[
+            { icono: 'qr_code_scanner', texto: 'Escaneo de códigos de barras' },
+            { icono: 'mic', texto: 'Comandos de voz integrados' },
+            { icono: 'inventory_2', texto: 'Inventario en tiempo real' },
+            { icono: 'assignment_ind', texto: 'Asignación de utensilios' },
+          ].map((item) => (
+            <div key={item.icono} className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-white/15 rounded-lg flex items-center justify-center">
+                <span className="material-symbols-outlined text-white/90 text-[18px]">
+                  {item.icono}
+                </span>
+              </div>
+              <span className="text-white/80 text-sm font-medium">
+                {item.texto}
+              </span>
+            </div>
+          ))}
+
+          <div className="pt-6 border-t border-white/20">
+            <p className="text-white/50 text-xs">
+              © 2026 KitchenLogix · Todos los derechos reservados
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Panel derecho: Formulario de login */}
+      <div className="flex-1 flex flex-col justify-center items-center p-6 md:p-12 bg-surface-container-lowest">
+        {/* Logo móvil */}
+        <div className="md:hidden flex items-center gap-2 mb-8">
+          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
+            <span className="material-symbols-outlined text-white text-xl icon-fill">
+              soup_kitchen
+            </span>
+          </div>
+          <span className="text-on-surface font-bold text-xl tracking-tight">
+            KitchenLogix
+          </span>
+        </div>
+
+        <div className="w-full max-w-md">
+          {/* Encabezado del formulario */}
+          <div className="mb-8">
+            <h2 className="text-on-surface font-bold text-3xl mb-1">
+              Bienvenido
+            </h2>
+            <p className="text-on-surface-variant text-base">
+              Ingresa tus credenciales para acceder al sistema
+            </p>
+          </div>
+
+          {/* Selector de panel */}
+          <div className="mb-6">
+            <p className="text-on-surface-variant text-xs font-semibold uppercase tracking-widest mb-3">
+              Seleccionar Panel
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {paneles.map((panel) => {
+                const estaActivo = panelSeleccionado === panel.tipo
+                return (
+                  <button
+                    key={panel.tipo}
+                    type="button"
+                    onClick={() => setPanelSeleccionado(panel.tipo)}
+                    className={`relative flex flex-col items-start p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                      estaActivo
+                        ? 'border-primary bg-primary/5 shadow-sm'
+                        : 'border-outline-variant bg-surface-container-low hover:border-outline hover:bg-surface-container'
+                    }`}
+                  >
+                    {estaActivo && (
+                      <div className="absolute top-3 right-3 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
+                        <span className="material-symbols-outlined text-white text-[14px] icon-fill">
+                          check
+                        </span>
+                      </div>
+                    )}
+                    <div
+                      className={`w-9 h-9 rounded-lg flex items-center justify-center mb-2 ${
+                        estaActivo
+                          ? 'bg-primary/15 text-primary'
+                          : 'bg-surface-container text-on-surface-variant'
+                      }`}
+                    >
+                      <span className="material-symbols-outlined text-[20px]">
+                        {panel.icono}
+                      </span>
+                    </div>
+                    <span
+                      className={`font-semibold text-sm ${
+                        estaActivo ? 'text-primary' : 'text-on-surface'
+                      }`}
+                    >
+                      {panel.titulo}
+                    </span>
+                    <span className="text-on-surface-variant text-xs leading-tight mt-0.5">
+                      {panel.descripcion}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Formulario */}
+          <form action={accion} className="space-y-4">
+            <input
+              type="hidden"
+              name="panel"
+              value={panelSeleccionado}
+            />
+
+            {/* Campo Email */}
+            <div>
+              <label
+                htmlFor="email"
+                className="block text-on-surface text-sm font-medium mb-1.5"
+              >
+                Correo electrónico
+              </label>
+              <div className="relative">
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline">
+                  <span className="material-symbols-outlined text-[20px]">
+                    mail
+                  </span>
+                </div>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  placeholder="usuario@ejemplo.com"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Campo Contraseña */}
+            <div>
+              <label
+                htmlFor="contrasena"
+                className="block text-on-surface text-sm font-medium mb-1.5"
+              >
+                Contraseña
+              </label>
+              <div className="relative">
+                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline">
+                  <span className="material-symbols-outlined text-[20px]">
+                    lock
+                  </span>
+                </div>
+                <input
+                  id="contrasena"
+                  name="contrasena"
+                  type={mostrarContrasena ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  placeholder="••••••••"
+                  className="w-full pl-11 pr-12 py-3 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setMostrarContrasena(!mostrarContrasena)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[20px]">
+                    {mostrarContrasena ? 'visibility_off' : 'visibility'}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Mensaje de error */}
+            {estado?.error && (
+              <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-error-container border border-error/20">
+                <span className="material-symbols-outlined text-on-error-container text-[18px] icon-fill">
+                  error
+                </span>
+                <p className="text-on-error-container text-sm">
+                  {estado.error}
+                </p>
+              </div>
+            )}
+
+            {/* Botón de ingreso */}
+            <button
+              type="submit"
+              disabled={estaCargando}
+              className="w-full flex items-center justify-center gap-2.5 py-3.5 px-6 rounded-xl bg-primary text-on-primary font-semibold text-sm hover:bg-surface-tint active:scale-[0.98] transition-all duration-200 shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {estaCargando ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Verificando...
+                </>
+              ) : (
+                <>
+                  <span className="material-symbols-outlined text-[20px] icon-fill">
+                    login
+                  </span>
+                  Ingresar al Sistema
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Panel indicador */}
+          <div className="mt-6 flex items-center justify-center gap-2 text-on-surface-variant">
+            <span className="material-symbols-outlined text-[16px]">info</span>
+            <p className="text-xs">
+              Accediendo al panel de{' '}
+              <span className="font-semibold text-primary capitalize">
+                {panelSeleccionado === 'admin'
+                  ? 'Administración'
+                  : 'Inventarios'}
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

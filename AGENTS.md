@@ -11,6 +11,17 @@ App-web para un sistema de inventarios de utensilios para cocinas industriales, 
 -   Ideas de Diseños en la carpeta /ideas
 
 
+### Arquitectura del Proyecto
+
+src/
+├── app/            # Routing (Next.js)
+├── modules/        # Lógica por dominio
+├── components/     # UI reutilizable
+├── lib/            # Servicios y utilidades
+├── store/          # Estado global
+├── types/          # Tipos globales
+
+
 ##  Stack Tecnológico
 
 - **Frontend**: Next.js - React

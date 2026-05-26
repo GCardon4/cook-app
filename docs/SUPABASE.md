@@ -5,6 +5,7 @@
 Definir la estructura de la base de datos para gestionar:
 
 * Profiles (profiles) / Usuarios
+* Roles (roles) /Roles del Usuario par authenticación
 * Utensils (utensils) / Utensilios
 * Cook (cook) /Cocineras
 * School (school) /Colegios 
@@ -31,15 +32,26 @@ Este esquema soporta múltiples clientes que presentan visualizaciones y clics c
 
 ---
 
+## roles (Roles del Usuario)
+
+| Campo      | Tipo | Descripción            |
+| ---------- | ---- | ---------------------- |
+| id         | uuid | PK (Auth Supabase)     |
+| created_at | date | Fecha de creación      |
+| name       | text | Nombre del Rol         |
+
+---
+
 ## utensils (Utensilios)
 
-| Campo       | Tipo    | Descripción    |
-| ----------- | ------- | -------------- |
-| id          | int8    | PK             |
-| name        | text    | Nombre         |
-| sku         | numeric | Código QR      |
-| description | text    | Descripción    |
-| created_at  | date    | Fecha Creación |
+| Campo       | Tipo    | Descripción            |
+| ----------- | ------- | ---------------------- |
+| id          | int8    | PK                     |
+| name        | text    | Nombre                 |
+| sku         | numeric | Código QR              |
+| description | text    | Descripción            |
+| created_at  | date    | Fecha Creación         |
+| updated_at  | date    | Fecha de Actualizacion |
 
 ---
 
