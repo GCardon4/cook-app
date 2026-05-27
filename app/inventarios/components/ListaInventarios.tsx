@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import type { UtensilioConInventario } from '@/lib/supabase/types'
 import { asignarDesdeInventario } from '../actions'
@@ -31,11 +31,13 @@ function PanelAsignacion({
   cocineras,
   onCerrar,
   onAsignado,
+  fromScan = false,
 }: {
   utensilio: UtensilioConInventario
   cocineras: { id: number; name: string }[]
   onCerrar: () => void
   onAsignado: () => void
+  fromScan?: boolean
 }) {
   const { total, asignado, disponible, pct } = calcularStock(utensilio)
 
@@ -47,6 +49,7 @@ function PanelAsignacion({
   const [cantidad, setCantidad] = useState(1)
   const [procesando, setProcesando] = useState(false)
   const [feedback, setFeedback] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
+  const selectRef = useRef<HTMLSelectElement>(null)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar() }
@@ -58,6 +61,14 @@ function PanelAsignacion({
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
   }, [])
+
+  // Auto-foco en selector de cocinera cuando viene del escáner
+  useEffect(() => {
+    if (fromScan && disponible > 0 && cocinerasDisponibles.length > 0) {
+      const t = setTimeout(() => selectRef.current?.focus(), 150)
+      return () => clearTimeout(t)
+    }
+  }, [fromScan, disponible, cocinerasDisponibles.length])
 
   const handleAsignar = async () => {
     if (!cocineraId) return
@@ -96,13 +107,21 @@ function PanelAsignacion({
 
         {/* Header */}
         <div className="px-5 pt-4 pb-3 flex items-start gap-3">
-          <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-colors ${fromScan ? 'bg-primary text-on-primary' : 'bg-primary/10 text-primary'}`}>
             <span className="material-symbols-outlined text-[24px] icon-fill">flatware</span>
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-on-surface font-bold text-base leading-tight truncate">
-              {utensilio.name}
-            </h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-on-surface font-bold text-base leading-tight truncate">
+                {utensilio.name}
+              </h3>
+              {fromScan && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-semibold shrink-0">
+                  <span className="material-symbols-outlined text-[11px]">qr_code_scanner</span>
+                  Escaneado
+                </span>
+              )}
+            </div>
             {utensilio.sku && (
               <p className="text-outline text-xs font-mono">SKU {utensilio.sku}</p>
             )}
@@ -175,6 +194,7 @@ function PanelAsignacion({
                     <span className="material-symbols-outlined text-[20px]">person</span>
                   </div>
                   <select
+                    ref={selectRef}
                     value={cocineraId}
                     onChange={(e) => { setCocineraId(e.target.value ? Number(e.target.value) : ''); setFeedback(null) }}
                     className="w-full pl-11 pr-4 py-3 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all appearance-none"
@@ -301,9 +321,58 @@ function PanelAsignacion({
 export default function ListaInventarios({ utensilios, cocineras }: Props) {
   const [filtroActivo, setFiltroActivo] = useState('todos')
   const [textoBusqueda, setTextoBusqueda] = useState('')
-  const [codigoManual, setCodigoManual] = useState('')
   const [utensilioActivo, setUtensilioActivo] = useState<UtensilioConInventario | null>(null)
   const [version, setVersion] = useState(0)
+  const [scanError, setScanError] = useState<string | null>(null)
+  const [desdeEscaner, setDesdeEscaner] = useState(false)
+
+  // Detección de escáner Bluetooth/USB: caracteres rápidos + Enter
+  const scanBuffer = useRef('')
+  const lastScanTime = useRef(0)
+
+  useEffect(() => {
+    const THRESHOLD = 80 // ms — escáneres físicos envían chars en < 5ms
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      const now = Date.now()
+
+      if (e.key === 'Enter') {
+        const buf = scanBuffer.current
+        scanBuffer.current = ''
+        lastScanTime.current = 0
+
+        if (buf.length >= 3 && /^\d+$/.test(buf)) {
+          const sku = parseInt(buf)
+          const encontrado = utensilios.find((u) => u.sku === sku)
+          if (encontrado) {
+            setUtensilioActivo(encontrado)
+            setDesdeEscaner(true)
+            setTextoBusqueda('')
+            setScanError(null)
+          } else {
+            setScanError(`SKU ${sku} no encontrado en el inventario`)
+            setTimeout(() => setScanError(null), 3000)
+          }
+        }
+        return
+      }
+
+      if (e.key.length !== 1 || !/\d/.test(e.key)) return
+
+      const elapsed = now - lastScanTime.current
+      lastScanTime.current = now
+
+      // Acumular si viene rápido; reiniciar si el usuario escribe despacio
+      if (elapsed < THRESHOLD && scanBuffer.current.length > 0) {
+        scanBuffer.current += e.key
+      } else {
+        scanBuffer.current = e.key
+      }
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [utensilios])
 
   const handleAsignado = useCallback(() => setVersion((v) => v + 1), [])
 
@@ -325,14 +394,6 @@ export default function ListaInventarios({ utensilios, cocineras }: Props) {
     return coincideBusqueda && coincideFiltro
   })
 
-  const manejarBusquedaCodigo = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (codigoManual.trim()) {
-      setTextoBusqueda(codigoManual.trim())
-      setCodigoManual('')
-    }
-  }
-
   const totalDisponible = utensilios.filter((u) => calcularStock(u).disponible > 0).length
   const totalAsignados = utensilios.filter((u) => u.inventory.length > 0).length
   const totalAgotado = utensilios.filter((u) => calcularStock(u).disponible === 0).length
@@ -345,85 +406,61 @@ export default function ListaInventarios({ utensilios, cocineras }: Props) {
 
   return (
     <div key={version}>
-      {/* Encabezado */}
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-        <div>
-          <h2 className="text-on-surface font-bold text-2xl md:text-3xl">Inventario Operativo</h2>
-          <p className="text-on-surface-variant text-base mt-1">
-            {utensilios.length} utensilio{utensilios.length !== 1 ? 's' : ''} ·{' '}
-            {totalDisponible} con stock disponible
-          </p>
+      {/* Toast error escáner — fixed bottom */}
+      {scanError && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-on-surface text-surface shadow-xl text-sm font-medium whitespace-nowrap animate-in fade-in slide-in-from-bottom-2">
+          <span className="material-symbols-outlined text-[18px] icon-fill text-secondary">search_off</span>
+          {scanError}
         </div>
-        <div className="flex gap-3">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10">
-            <span className="material-symbols-outlined text-primary text-[18px] icon-fill">inventory_2</span>
-            <span className="text-primary font-bold text-sm">{totalDisponible}</span>
-            <span className="text-primary/70 text-xs">disponibles</span>
+      )}
+
+      {/* Stats de stock + indicador escáner */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10">
+          <span className="material-symbols-outlined text-primary text-[18px] icon-fill">inventory_2</span>
+          <span className="text-primary font-bold text-sm">{totalDisponible}</span>
+          <span className="text-primary/70 text-xs">disponibles</span>
+        </div>
+        {totalAgotado > 0 && (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/10">
+            <span className="material-symbols-outlined text-secondary text-[18px] icon-fill">error</span>
+            <span className="text-secondary font-bold text-sm">{totalAgotado}</span>
+            <span className="text-secondary/70 text-xs">agotados</span>
           </div>
-          {totalAgotado > 0 && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-secondary/10">
-              <span className="material-symbols-outlined text-secondary text-[18px] icon-fill">error</span>
-              <span className="text-secondary font-bold text-sm">{totalAgotado}</span>
-              <span className="text-secondary/70 text-xs">agotados</span>
-            </div>
+        )}
+        <div className="ml-auto flex items-center gap-1.5 text-on-surface-variant text-xs">
+          <span className="w-2 h-2 rounded-full bg-primary animate-pulse inline-block" />
+          <span className="material-symbols-outlined text-[14px]">bluetooth</span>
+          <span className="hidden sm:inline">Escáner listo</span>
+        </div>
+      </div>
+
+      {/* Búsqueda + Cámara */}
+      <div className="mb-4 flex gap-2">
+        <div className="relative flex-1">
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
+            <span className="material-symbols-outlined text-[20px]">search</span>
+          </div>
+          <input
+            type="text"
+            value={textoBusqueda}
+            onChange={(e) => setTextoBusqueda(e.target.value)}
+            placeholder="Buscar por nombre, SKU o descripción..."
+            className="w-full pl-11 pr-10 py-3 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+          />
+          {textoBusqueda && (
+            <button onClick={() => setTextoBusqueda('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
           )}
         </div>
-      </div>
-
-      {/* Módulo de código de barras */}
-      <div className="mb-6 bg-surface-container-lowest rounded-2xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-primary/20">
-        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-          <div className="flex items-center gap-3 shrink-0">
-            <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-              <span className="material-symbols-outlined text-2xl icon-fill">qr_code_scanner</span>
-            </div>
-            <div>
-              <h3 className="text-on-surface font-semibold text-sm">Ingreso por Código de Barras</h3>
-              <p className="text-on-surface-variant text-xs">Busca por SKU o usa la cámara</p>
-            </div>
-          </div>
-          <form onSubmit={manejarBusquedaCodigo} className="flex flex-1 gap-2 min-w-0">
-            <div className="relative flex-1 min-w-0">
-              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline">
-                <span className="material-symbols-outlined text-[18px]">barcode_reader</span>
-              </div>
-              <input
-                type="number"
-                value={codigoManual}
-                onChange={(e) => setCodigoManual(e.target.value)}
-                placeholder="SKU del utensilio..."
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-              />
-            </div>
-            <button type="submit" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-surface-tint transition-colors shrink-0">
-              <span className="material-symbols-outlined text-[18px]">search</span>
-              <span className="hidden sm:inline">Buscar</span>
-            </button>
-            <Link href="/inventarios/escanear" className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-surface-container text-on-surface-variant text-sm font-medium hover:bg-surface-container-high transition-colors shrink-0">
-              <span className="material-symbols-outlined text-[18px]">photo_camera</span>
-              <span className="hidden sm:inline">Cámara</span>
-            </Link>
-          </form>
-        </div>
-      </div>
-
-      {/* Búsqueda */}
-      <div className="mb-4 relative">
-        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline">
-          <span className="material-symbols-outlined text-[20px]">search</span>
-        </div>
-        <input
-          type="text"
-          value={textoBusqueda}
-          onChange={(e) => setTextoBusqueda(e.target.value)}
-          placeholder="Buscar por nombre, SKU o descripción..."
-          className="w-full pl-11 pr-10 py-3 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-        />
-        {textoBusqueda && (
-          <button onClick={() => setTextoBusqueda('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        )}
+        <Link
+          href="/inventarios/escanear"
+          className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary/10 text-primary hover:bg-primary/15 active:scale-95 transition-all shrink-0"
+          title="Abrir escáner de cámara"
+        >
+          <span className="material-symbols-outlined text-[22px] icon-fill">qr_code_scanner</span>
+        </Link>
       </div>
 
       {/* Filtros */}
@@ -555,7 +592,8 @@ export default function ListaInventarios({ utensilios, cocineras }: Props) {
         <PanelAsignacion
           utensilio={utensilioActivo}
           cocineras={cocineras}
-          onCerrar={() => setUtensilioActivo(null)}
+          fromScan={desdeEscaner}
+          onCerrar={() => { setUtensilioActivo(null); setDesdeEscaner(false) }}
           onAsignado={handleAsignado}
         />
       )}
