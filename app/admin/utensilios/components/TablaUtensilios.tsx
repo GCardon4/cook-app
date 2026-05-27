@@ -9,6 +9,9 @@ type FilaUtensilio = {
   name: string
   sku: number | null
   description: string | null
+  stock: number
+  stockAsignado: number
+  stockDisponible: number
   created_at: string
   asignaciones: number
 }
@@ -157,6 +160,9 @@ export default function TablaUtensilios({ utensilios }: Props) {
                     Descripción
                   </th>
                   <th className="text-center px-4 py-4 text-[11px] font-bold uppercase tracking-widest text-outline">
+                    Stock
+                  </th>
+                  <th className="text-center px-4 py-4 text-[11px] font-bold uppercase tracking-widest text-outline hidden lg:table-cell">
                     Asignaciones
                   </th>
                   <th className="text-left px-4 py-4 text-[11px] font-bold uppercase tracking-widest text-outline hidden xl:table-cell">
@@ -201,8 +207,24 @@ export default function TablaUtensilios({ utensilios }: Props) {
                       </span>
                     </td>
 
-                    {/* Asignaciones */}
+                    {/* Stock */}
                     <td className="px-4 py-4 text-center">
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className={`text-sm font-bold ${
+                          utensilio.stockDisponible === 0
+                            ? 'text-secondary'
+                            : utensilio.stockDisponible <= 2
+                              ? 'text-tertiary'
+                              : 'text-primary'
+                        }`}>
+                          {utensilio.stockDisponible}
+                        </span>
+                        <span className="text-[10px] text-outline">/ {utensilio.stock}</span>
+                      </div>
+                    </td>
+
+                    {/* Asignaciones */}
+                    <td className="px-4 py-4 text-center hidden lg:table-cell">
                       <span
                         className={`inline-flex items-center justify-center min-w-[2rem] h-7 rounded-full text-xs font-bold px-2 ${
                           utensilio.asignaciones === 0
@@ -288,15 +310,16 @@ export default function TablaUtensilios({ utensilios }: Props) {
                       )}
                     </div>
                   </div>
-                  <span
-                    className={`shrink-0 text-[10px] font-bold px-2 py-1 rounded-full ${
-                      utensilio.asignaciones === 0
+                  <div className="flex flex-col items-end shrink-0 gap-0.5">
+                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${
+                      utensilio.stockDisponible === 0
                         ? 'bg-secondary/10 text-secondary'
                         : 'bg-primary/10 text-primary'
-                    }`}
-                  >
-                    {utensilio.asignaciones} asig.
-                  </span>
+                    }`}>
+                      {utensilio.stockDisponible}/{utensilio.stock}
+                    </span>
+                    <span className="text-[10px] text-outline pr-1">disponible</span>
+                  </div>
                 </div>
 
                 {utensilio.description && (

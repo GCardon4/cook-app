@@ -11,6 +11,7 @@ interface Props {
     nombre: string
     sku: string
     descripcion: string
+    stock: string
   }
   esEdicion?: boolean
 }
@@ -251,6 +252,34 @@ export default function FormularioUtensilio({
         {skuValor && (
           <VistaPreviaBarcode sku={skuValor} esNuevo={codigoRecienGenerado} />
         )}
+      </div>
+
+      {/* Campo Stock Inicial */}
+      <div>
+        <label htmlFor="stock" className="block text-on-surface text-sm font-semibold mb-1.5">
+          Stock
+          <span className="text-secondary ml-1">*</span>
+        </label>
+        <div className="relative">
+          <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline">
+            <span className="material-symbols-outlined text-[20px]">inventory_2</span>
+          </div>
+          <input
+            id="stock"
+            name="stock"
+            type="number"
+            required
+            min={0}
+            defaultValue={valoresIniciales?.stock ?? '0'}
+            placeholder="Cantidad de unidades disponibles..."
+            className="w-full pl-11 pr-4 py-3 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
+        </div>
+        <p className="text-outline text-xs mt-1.5">
+          {esEdicion
+            ? 'Ajusta el stock total disponible. No afecta las asignaciones existentes.'
+            : 'Cantidad inicial de unidades físicas de este utensilio en el sistema.'}
+        </p>
       </div>
 
       {/* Campo Descripción */}

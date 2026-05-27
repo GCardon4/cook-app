@@ -49,6 +49,7 @@ Este esquema soporta múltiples clientes que presentan visualizaciones y clics c
 | id          | int8    | PK                     |
 | name        | text    | Nombre                 |
 | sku         | numeric | Código QR              |
+| stock       | numeric | Cantidad de Utensilios |
 | description | text    | Descripción            |
 | created_at  | date    | Fecha Creación         |
 | updated_at  | date    | Fecha de Actualizacion |
@@ -80,13 +81,14 @@ Este esquema soporta múltiples clientes que presentan visualizaciones y clics c
 ## inventory (Inventario Utensilios)
 
 
-| Campo       | Tipo | Descripción         |
-| ----------- | ---- | ------------------- |
-| id          | int8 | PK                  |
-| cook_id     | int8 | FK → cook           |
-| utensils_id | int8 | FK → utensils       |
-| created_at  | date | Fecha de creación   |
-| updated_at  | date | Fecha actualizacion |
+| Campo       | Tipo    | Descripción         |
+| ----------- | ------- | ------------------- |
+| id          | int8    | PK                  |
+| cook_id     | int8    | FK → cook           |
+| utensils_id | int8    | FK → utensils       |
+| stock       | numeric | Código QR           |
+| created_at  | date    | Fecha de creación   |
+| updated_at  | date    | Fecha actualizacion |
 
 ---
 

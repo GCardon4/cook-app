@@ -14,6 +14,7 @@ function validarCamposUtensilio(datosFormulario: FormData) {
   const nombre = datosFormulario.get('nombre')?.toString().trim()
   const skuRaw = datosFormulario.get('sku')?.toString().trim()
   const descripcion = datosFormulario.get('descripcion')?.toString().trim() || null
+  const stockRaw = datosFormulario.get('stock')?.toString().trim()
 
   if (!nombre || nombre.length < 2) {
     return { error: 'El nombre del utensilio debe tener al menos 2 caracteres.' }
@@ -27,7 +28,12 @@ function validarCamposUtensilio(datosFormulario: FormData) {
     return { error: 'El código SKU debe ser un número positivo.' }
   }
 
-  return { datos: { nombre, sku, descripcion } }
+  const stock = stockRaw ? Number(stockRaw) : 0
+  if (isNaN(stock) || stock < 0) {
+    return { error: 'El stock debe ser un número igual o mayor a 0.' }
+  }
+
+  return { datos: { nombre, sku, descripcion, stock } }
 }
 
 // Crear nuevo utensilio en Supabase
@@ -38,7 +44,7 @@ export async function crearUtensilio(
   const validacion = validarCamposUtensilio(datosFormulario)
   if (validacion.error) return { error: validacion.error }
 
-  const { nombre, sku, descripcion } = validacion.datos!
+  const { nombre, sku, descripcion, stock } = validacion.datos!
   const supabase = await crearClienteServidor()
 
   // Verificar que el SKU no exista ya
@@ -58,6 +64,7 @@ export async function crearUtensilio(
     name: nombre,
     sku,
     description: descripcion,
+    stock,
   })
 
   if (error) {
@@ -79,7 +86,7 @@ export async function actualizarUtensilio(
   const validacion = validarCamposUtensilio(datosFormulario)
   if (validacion.error) return { error: validacion.error }
 
-  const { nombre, sku, descripcion } = validacion.datos!
+  const { nombre, sku, descripcion, stock } = validacion.datos!
   const supabase = await crearClienteServidor()
 
   // Verificar SKU duplicado (excluyendo el utensilio actual)
@@ -102,6 +109,7 @@ export async function actualizarUtensilio(
       name: nombre,
       sku,
       description: descripcion,
+      stock,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

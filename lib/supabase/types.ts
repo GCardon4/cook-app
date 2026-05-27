@@ -62,11 +62,13 @@ export type UtensilioConInventario = {
   name: string
   sku: number | null
   description: string | null
+  stock: number
   created_at: string
   updated_at: string
   inventory: {
     id: number
     cook_id: number
+    stock: number
     created_at: string
     cook: Pick<Cocinera, 'id' | 'name'>[] | null
   }[]

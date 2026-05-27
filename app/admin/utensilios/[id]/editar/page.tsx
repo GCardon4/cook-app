@@ -10,7 +10,7 @@ async function obtenerUtensilio(id: number) {
 
   const { data, error } = await supabase
     .from('utensils')
-    .select('id, name, sku, description, created_at, inventory(id)')
+    .select('id, name, sku, description, stock, created_at, inventory(id, stock)')
     .eq('id', id)
     .single()
 
@@ -31,7 +31,10 @@ export default async function PaginaEditarUtensilio({ params }: Props) {
   const utensilio = await obtenerUtensilio(id)
   if (!utensilio) notFound()
 
-  const totalAsignaciones = (utensilio.inventory as { id: number }[]).length
+  const invRows = utensilio.inventory as { id: number; stock: number | null }[]
+  const totalAsignaciones = invRows.length
+  const stockAsignado = invRows.reduce((acc, inv) => acc + (inv.stock ?? 1), 0)
+  const stockTotal = (utensilio.stock as number | null) ?? 0
 
   // Vincular la acción con el id del utensilio actual
   const accionActualizar = actualizarUtensilio.bind(null, id)
@@ -67,16 +70,20 @@ export default async function PaginaEditarUtensilio({ params }: Props) {
             </div>
           </div>
 
-          {/* Badge de asignaciones */}
-          <div className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-            totalAsignaciones > 0
-              ? 'bg-primary/10 text-primary'
-              : 'bg-secondary/10 text-secondary'
-          }`}>
-            <span className="material-symbols-outlined text-[14px] icon-fill">
-              {totalAsignaciones > 0 ? 'check_circle' : 'warning'}
-            </span>
-            {totalAsignaciones} asignación{totalAsignaciones !== 1 ? 'es' : ''}
+          {/* Badges de stock y asignaciones */}
+          <div className="flex flex-col gap-1.5 shrink-0 items-end">
+            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
+              stockTotal - stockAsignado === 0
+                ? 'bg-secondary/10 text-secondary'
+                : 'bg-primary/10 text-primary'
+            }`}>
+              <span className="material-symbols-outlined text-[14px] icon-fill">inventory_2</span>
+              {stockTotal - stockAsignado}/{stockTotal} disp.
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-surface-container text-on-surface-variant">
+              <span className="material-symbols-outlined text-[14px]">link</span>
+              {totalAsignaciones} asig.
+            </div>
           </div>
         </div>
 
@@ -101,6 +108,7 @@ export default async function PaginaEditarUtensilio({ params }: Props) {
               nombre: utensilio.name,
               sku: utensilio.sku?.toString() ?? '',
               descripcion: utensilio.description ?? '',
+              stock: stockTotal.toString(),
             }}
           />
         </div>
