@@ -87,8 +87,21 @@ export default function EscanerCodigo({ cocineras }: Props) {
     setErrorCamara(null)
 
     try {
-      const { BrowserMultiFormatReader } = await import('@zxing/browser')
-      const reader = new BrowserMultiFormatReader()
+      const [{ BrowserMultiFormatReader }, { BarcodeFormat, DecodeHintType }] = await Promise.all([
+        import('@zxing/browser'),
+        import('@zxing/library'),
+      ])
+
+      const hints = new Map()
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, [
+        BarcodeFormat.QR_CODE,
+        BarcodeFormat.CODE_128,
+        BarcodeFormat.EAN_13,
+        BarcodeFormat.EAN_8,
+      ])
+      hints.set(DecodeHintType.TRY_HARDER, true)
+
+      const reader = new BrowserMultiFormatReader(hints)
 
       const dispositivos = await BrowserMultiFormatReader.listVideoInputDevices()
       setCamaras(
@@ -246,15 +259,15 @@ export default function EscanerCodigo({ cocineras }: Props) {
 
             {camaraActiva && !errorCamara && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="relative w-56 h-40">
-                  <div className="absolute top-0 left-0 w-7 h-7 border-primary" style={{ borderWidth: '3px 0 0 3px', borderRadius: '4px 0 0 0' }} />
-                  <div className="absolute top-0 right-0 w-7 h-7 border-primary" style={{ borderWidth: '3px 3px 0 0', borderRadius: '0 4px 0 0' }} />
-                  <div className="absolute bottom-0 left-0 w-7 h-7 border-primary" style={{ borderWidth: '0 0 3px 3px', borderRadius: '0 0 0 4px' }} />
-                  <div className="absolute bottom-0 right-0 w-7 h-7 border-primary" style={{ borderWidth: '0 3px 3px 0', borderRadius: '0 0 4px 0' }} />
+                <div className="relative w-52 h-52">
+                  <div className="absolute top-0 left-0 w-8 h-8 border-primary" style={{ borderWidth: '3px 0 0 3px', borderRadius: '4px 0 0 0' }} />
+                  <div className="absolute top-0 right-0 w-8 h-8 border-primary" style={{ borderWidth: '3px 3px 0 0', borderRadius: '0 4px 0 0' }} />
+                  <div className="absolute bottom-0 left-0 w-8 h-8 border-primary" style={{ borderWidth: '0 0 3px 3px', borderRadius: '0 0 0 4px' }} />
+                  <div className="absolute bottom-0 right-0 w-8 h-8 border-primary" style={{ borderWidth: '0 3px 3px 0', borderRadius: '0 0 4px 0' }} />
                   <div className="absolute inset-x-2 h-0.5 bg-primary/80 shadow-[0_0_8px_rgba(0,104,95,0.9)] animate-scan" />
                 </div>
                 <p className="absolute bottom-4 text-white/80 text-xs font-medium bg-black/40 px-3 py-1 rounded-full">
-                  Apunta al código de barras
+                  Apunta al código QR del utensilio
                 </p>
               </div>
             )}
@@ -307,7 +320,7 @@ export default function EscanerCodigo({ cocineras }: Props) {
           <div className="flex items-start gap-3 mb-4 p-3 rounded-xl bg-primary/5 border border-primary/15">
             <span className="material-symbols-outlined text-primary text-[18px] icon-fill shrink-0 mt-0.5">info</span>
             <p className="text-primary text-xs leading-relaxed">
-              Con un <strong>escáner físico</strong> (USB/Bluetooth) simplemente apúntalo — envía Enter automáticamente.
+              Con un <strong>escáner físico</strong> (USB/Bluetooth) apunta al código QR o de barras — envía Enter automáticamente.
               También puedes escribir el SKU manualmente.
             </p>
           </div>
@@ -637,13 +650,13 @@ export default function EscanerCodigo({ cocineras }: Props) {
         <div className="text-center py-10">
           <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-3">
             <span className="material-symbols-outlined text-3xl text-outline">
-              {modo === 'camara' ? 'photo_camera' : 'barcode_reader'}
+              {modo === 'camara' ? 'qr_code_scanner' : 'barcode_reader'}
             </span>
           </div>
           <p className="text-on-surface-variant text-sm">
             {modo === 'camara'
-              ? 'Apunta la cámara a un código de barras'
-              : 'Escanea o escribe un SKU para comenzar'}
+              ? 'Apunta la cámara al código QR del utensilio'
+              : 'Escanea el QR o escribe el SKU para comenzar'}
           </p>
         </div>
       )}

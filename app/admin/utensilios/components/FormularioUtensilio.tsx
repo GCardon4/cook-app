@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState, useMemo } from 'react'
+import { useActionState, useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { crearClienteNavegador } from '@/lib/supabase/client'
 import type { EstadoFormulario } from '../actions'
@@ -16,35 +16,41 @@ interface Props {
   esEdicion?: boolean
 }
 
-// Generar barras visuales del código de barras de forma determinista desde el número SKU
-function usarBarrasBarcode(sku: string) {
-  return useMemo(() => {
-    if (!sku) return []
-    const num = parseInt(sku) || 0
-    const barras: { ancho: number; oscuro: boolean }[] = []
-
-    // Guardias de inicio
-    barras.push({ ancho: 1, oscuro: true }, { ancho: 1, oscuro: false }, { ancho: 1, oscuro: true })
-
-    // Codificar dígitos usando LCG determinista para reproducibilidad
-    let semilla = num
-    for (let i = 0; i < 42; i++) {
-      semilla = (semilla * 1664525 + 1013904223) >>> 0
-      const ancho = (semilla % 3) + 1
-      barras.push({ ancho, oscuro: i % 2 === 0 })
-    }
-
-    // Guardias de fin
-    barras.push({ ancho: 1, oscuro: false }, { ancho: 1, oscuro: true }, { ancho: 1, oscuro: false }, { ancho: 1, oscuro: true })
-
-    return barras
-  }, [sku])
-}
-
-// Vista previa del código de barras generado
+// Vista previa del código de barras Code128 real generado con ZXing
 function VistaPreviaBarcode({ sku, esNuevo }: { sku: string; esNuevo: boolean }) {
-  const barras = usarBarrasBarcode(sku)
-  if (!barras.length) return null
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const [errorCanvas, setErrorCanvas] = useState(false)
+
+  useEffect(() => {
+    if (!sku || !canvasRef.current) return
+    setErrorCanvas(false)
+    const canvas = canvasRef.current
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    import('@zxing/library').then(({ MultiFormatWriter, BarcodeFormat, EncodeHintType }) => {
+      try {
+        const hints = new Map()
+        hints.set(EncodeHintType.MARGIN, 2)
+        hints.set(EncodeHintType.ERROR_CORRECTION, 'M')
+        const writer = new MultiFormatWriter()
+        const size = canvas.width
+        const matrix = writer.encode(sku, BarcodeFormat.QR_CODE, size, size, hints)
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, size, size)
+        ctx.fillStyle = '#000000'
+        for (let x = 0; x < matrix.getWidth(); x++) {
+          for (let y = 0; y < matrix.getHeight(); y++) {
+            if (matrix.get(x, y)) ctx.fillRect(x, y, 1, 1)
+          }
+        }
+      } catch {
+        setErrorCanvas(true)
+      }
+    }).catch(() => setErrorCanvas(true))
+  }, [sku])
+
+  if (!sku) return null
 
   return (
     <div
@@ -54,26 +60,25 @@ function VistaPreviaBarcode({ sku, esNuevo }: { sku: string; esNuevo: boolean })
           : 'border-outline-variant/40'
       }`}
     >
-      {/* Área de código de barras */}
       <div className="bg-white px-6 py-5 flex flex-col items-center gap-3">
-        {/* Barras SVG-like con divs */}
-        <div className="flex items-stretch gap-[1.5px] h-14 w-full max-w-xs">
-          {barras.map((barra, i) => (
-            <div
-              key={i}
-              className={`rounded-[0.5px] ${barra.oscuro ? 'bg-on-surface' : 'bg-transparent'}`}
-              style={{ width: `${barra.ancho * 3}px`, flexShrink: 0 }}
-            />
-          ))}
-        </div>
-
-        {/* Número del código */}
+        {errorCanvas ? (
+          <div className="w-40 h-40 flex items-center justify-center text-outline text-xs text-center">
+            No se pudo generar el código QR
+          </div>
+        ) : (
+          <canvas
+            ref={canvasRef}
+            width={200}
+            height={200}
+            className="w-40 h-40 sm:w-48 sm:h-48"
+            style={{ imageRendering: 'pixelated' }}
+          />
+        )}
         <p className="font-mono font-bold text-on-surface tracking-[0.25em] text-base select-all">
           {sku}
         </p>
       </div>
 
-      {/* Pie de la preview */}
       {esNuevo && (
         <div className="bg-primary/5 border-t border-primary/15 px-4 py-2 flex items-center gap-2">
           <span className="material-symbols-outlined text-primary text-[16px] icon-fill">
