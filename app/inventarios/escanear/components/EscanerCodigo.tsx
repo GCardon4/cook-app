@@ -42,6 +42,7 @@ export default function EscanerCodigo({ cocineras }: Props) {
   const [camaras, setCamaras] = useState<{ deviceId: string; label: string }[]>([])
   const [camaraSeleccionada, setCamaraSeleccionada] = useState<string | undefined>(undefined)
   const [ultimoEscaneado, setUltimoEscaneado] = useState<string | null>(null)
+  const [modalAbierto, setModalAbierto] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -69,7 +70,8 @@ export default function EscanerCodigo({ cocineras }: Props) {
 
     if (res) {
       setResultado(res)
-      if (res.stockDisponible === 0) setPanelActivo('entrega')
+      setPanelActivo(res.stockDisponible === 0 ? 'entrega' : 'asignar')
+      setModalAbierto(true)
     } else {
       setErrorBusqueda(`No se encontró ningún utensilio con SKU ${skuNum}.`)
     }
@@ -143,9 +145,22 @@ export default function EscanerCodigo({ cocineras }: Props) {
     ultimoSKURef.current = ''
   }, [])
 
+  const cerrarModal = useCallback(() => {
+    setModalAbierto(false)
+    setResultado(null)
+    setEstadoAccion(null)
+    setUltimoEscaneado(null)
+    setCocineraSeleccionada('')
+    setCantidadAsignar(1)
+    setCantidadRecibir(1)
+    setEntregaMap({})
+    ultimoSKURef.current = ''
+  }, [])
+
   const cambiarModo = (nuevoModo: Modo) => {
     if (modo === 'camara') detenerCamara()
     setModo(nuevoModo)
+    setModalAbierto(false)
     setResultado(null)
     setErrorBusqueda(null)
     setErrorCamara(null)
@@ -179,9 +194,7 @@ export default function EscanerCodigo({ cocineras }: Props) {
     const estado = await asignarUtensilio(resultado.id, Number(cocineraSeleccionada), cantidadAsignar)
     setEstadoAccion(estado)
     if (estado?.exito) {
-      await refrescarResultado(resultado.sku!)
-      setCocineraSeleccionada('')
-      setCantidadAsignar(1)
+      setTimeout(cerrarModal, 1400)
     }
     setProcesando(false)
   }
@@ -195,8 +208,7 @@ export default function EscanerCodigo({ cocineras }: Props) {
     const estado = await registrarEntrega(inventarioId, cantidad)
     setEstadoAccion(estado)
     if (estado?.exito) {
-      await refrescarResultado(resultado.sku!)
-      setEntregaMap((prev) => { const n = { ...prev }; delete n[inventarioId]; return n })
+      setTimeout(cerrarModal, 1400)
     }
     setProcesando(false)
   }
@@ -209,8 +221,7 @@ export default function EscanerCodigo({ cocineras }: Props) {
     const estado = await recibirStock(resultado.id, cantidadRecibir)
     setEstadoAccion(estado)
     if (estado?.exito) {
-      await refrescarResultado(resultado.sku!)
-      setCantidadRecibir(1)
+      setTimeout(cerrarModal, 1400)
     }
     setProcesando(false)
   }
@@ -379,269 +390,259 @@ export default function EscanerCodigo({ cocineras }: Props) {
         </div>
       )}
 
-      {/* ─── Resultado del escaneo ───────────────────────────────── */}
-      {resultado && !buscando && (
-        <div className="rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-surface-container-high/50">
+      {/* ─── Bottom Sheet Modal ──────────────────────────────────── */}
+      {modalAbierto && resultado && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={cerrarModal} />
 
-          {/* Header del utensilio */}
-          <div className="bg-surface-container-lowest px-5 py-4 border-b border-outline-variant/20">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[26px] icon-fill">flatware</span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <h3 className="text-on-surface font-bold text-lg leading-tight truncate">
-                  {resultado.name}
-                </h3>
-                {resultado.sku && (
-                  <p className="text-outline text-xs font-mono mt-0.5">SKU: {resultado.sku}</p>
-                )}
-                {resultado.description && (
-                  <p className="text-on-surface-variant text-xs mt-1 line-clamp-1">{resultado.description}</p>
-                )}
-              </div>
+          {/* Panel */}
+          <div className="relative w-full sm:max-w-lg bg-surface-container-lowest rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+
+            {/* Handle (solo móvil) */}
+            <div className="flex justify-center pt-3 pb-1 shrink-0 sm:hidden">
+              <div className="w-10 h-1 rounded-full bg-outline-variant" />
             </div>
 
-            {/* Barra de stock */}
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-on-surface-variant text-xs font-medium">Stock disponible</span>
-                <span className={`text-xs font-bold ${
-                  resultado.stockDisponible === 0 ? 'text-secondary' :
-                  resultado.stockDisponible <= 2 ? 'text-tertiary' : 'text-primary'
-                }`}>
-                  {resultado.stockDisponible} / {resultado.stockTotal}
-                </span>
-              </div>
-              <div className="h-2 w-full bg-surface-container-high rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    porcentajeStock === 0 ? 'bg-secondary' :
-                    porcentajeStock <= 25 ? 'bg-tertiary' : 'bg-primary'
-                  }`}
-                  style={{ width: `${Math.max(porcentajeStock, 4)}%` }}
-                />
-              </div>
-              <div className="flex justify-between mt-1.5">
-                <span className="text-outline text-[10px]">Asignado: {resultado.stockAsignado}</span>
-                <span className="text-outline text-[10px]">Total: {resultado.stockTotal}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs de acciones */}
-          <div className="flex border-b border-outline-variant/20 bg-surface-container/30">
-            {([
-              { val: 'asignar' as PanelActivo, icono: 'add_link', label: 'Asignar' },
-              { val: 'entrega' as PanelActivo, icono: 'assignment_return', label: 'Entrega' },
-              { val: 'recibir' as PanelActivo, icono: 'add_box', label: 'Recibir' },
-            ] as { val: PanelActivo; icono: string; label: string }[]).map((tab) => (
-              <button
-                key={tab.val}
-                onClick={() => { setPanelActivo(tab.val); setEstadoAccion(null) }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-all border-b-2 ${
-                  panelActivo === tab.val
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-on-surface-variant hover:text-on-surface'
-                }`}
-              >
-                <span className={`material-symbols-outlined text-[16px] ${panelActivo === tab.val ? 'icon-fill' : ''}`}>
-                  {tab.icono}
-                </span>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Panel: Asignar */}
-          {panelActivo === 'asignar' && (
-            <div className="bg-surface-container-lowest px-5 py-4 space-y-3">
-              {cocinerasDisponibles.length === 0 ? (
-                <p className="text-outline text-sm italic text-center py-2">
-                  Todas las cocineras ya tienen este utensilio asignado.
-                </p>
-              ) : resultado.stockDisponible === 0 ? (
-                <div className="flex items-start gap-2 p-3 rounded-xl bg-secondary/8 border border-secondary/20">
-                  <span className="material-symbols-outlined text-secondary text-[16px] icon-fill shrink-0 mt-0.5">warning</span>
-                  <p className="text-secondary text-xs">Stock agotado. Primero registra una entrega o recibe más unidades.</p>
+            {/* Header utensilio */}
+            <div className="px-5 pt-2 pb-4 border-b border-outline-variant/20 shrink-0">
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[22px] icon-fill">flatware</span>
                 </div>
-              ) : (
-                <>
-                  <div className="flex gap-2">
-                    <select
-                      value={cocineraSeleccionada}
-                      onChange={(e) => setCocineraSeleccionada(e.target.value ? Number(e.target.value) : '')}
-                      className="flex-1 px-3 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
-                    >
-                      <option value="">Selecciona cocinera...</option>
-                      {cocinerasDisponibles.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-on-surface font-bold text-base leading-snug truncate">{resultado.name}</h3>
+                  {resultado.sku && (
+                    <p className="text-outline text-xs font-mono mt-0.5">SKU {resultado.sku}</p>
+                  )}
+                  {resultado.description && (
+                    <p className="text-on-surface-variant text-xs mt-0.5 line-clamp-1">{resultado.description}</p>
+                  )}
+                </div>
+                <button
+                  onClick={cerrarModal}
+                  className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
 
-                    {/* Cantidad */}
-                    <div className="flex items-center gap-1 border border-outline-variant rounded-xl bg-surface-container-low px-3 shrink-0">
+              {/* Barra de stock */}
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-on-surface-variant text-xs">Stock disponible</span>
+                  <span className={`text-xs font-bold ${
+                    resultado.stockDisponible === 0 ? 'text-secondary' :
+                    resultado.stockDisponible <= 2 ? 'text-tertiary' : 'text-primary'
+                  }`}>
+                    {resultado.stockDisponible} / {resultado.stockTotal}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full bg-surface-container-high rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      porcentajeStock === 0 ? 'bg-secondary' :
+                      porcentajeStock <= 25 ? 'bg-tertiary' : 'bg-primary'
+                    }`}
+                    style={{ width: `${Math.max(porcentajeStock, 4)}%` }}
+                  />
+                </div>
+                <div className="flex justify-between mt-1">
+                  <span className="text-outline text-[10px]">Asignado: {resultado.stockAsignado}</span>
+                  <span className="text-outline text-[10px]">Total: {resultado.stockTotal}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-outline-variant/20 shrink-0">
+              {([
+                { val: 'asignar' as PanelActivo, icono: 'add_link', label: 'Asignar' },
+                { val: 'entrega' as PanelActivo, icono: 'assignment_return', label: 'Entrega' },
+                { val: 'recibir' as PanelActivo, icono: 'add_box', label: 'Recibir' },
+              ] as { val: PanelActivo; icono: string; label: string }[]).map((tab) => (
+                <button
+                  key={tab.val}
+                  onClick={() => { setPanelActivo(tab.val); setEstadoAccion(null) }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-3 text-xs font-semibold transition-all border-b-2 ${
+                    panelActivo === tab.val
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-on-surface-variant hover:text-on-surface'
+                  }`}
+                >
+                  <span className={`material-symbols-outlined text-[16px] ${panelActivo === tab.val ? 'icon-fill' : ''}`}>
+                    {tab.icono}
+                  </span>
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Contenido scrollable */}
+            <div className="flex-1 overflow-y-auto">
+
+              {/* Panel: Asignar */}
+              {panelActivo === 'asignar' && (
+                <div className="px-5 py-4 space-y-3">
+                  {cocinerasDisponibles.length === 0 ? (
+                    <p className="text-outline text-sm italic text-center py-4">
+                      Todas las cocineras ya tienen este utensilio asignado.
+                    </p>
+                  ) : resultado.stockDisponible === 0 ? (
+                    <div className="flex items-start gap-2 p-3 rounded-xl bg-secondary/8 border border-secondary/20">
+                      <span className="material-symbols-outlined text-secondary text-[16px] icon-fill shrink-0 mt-0.5">warning</span>
+                      <p className="text-secondary text-xs">Stock agotado. Registra una entrega o recibe más unidades.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        <select
+                          value={cocineraSeleccionada}
+                          onChange={(e) => setCocineraSeleccionada(e.target.value ? Number(e.target.value) : '')}
+                          className="flex-1 px-3 py-2.5 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+                        >
+                          <option value="">Selecciona cocinera...</option>
+                          {cocinerasDisponibles.map((c) => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+
+                        <div className="flex items-center gap-1 border border-outline-variant rounded-xl bg-surface-container-low px-3 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setCantidadAsignar((v) => Math.max(1, v - 1))}
+                            className="text-on-surface-variant hover:text-primary transition-colors p-0.5"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">remove</span>
+                          </button>
+                          <span className="w-6 text-center text-on-surface font-bold text-sm">{cantidadAsignar}</span>
+                          <button
+                            type="button"
+                            onClick={() => setCantidadAsignar((v) => Math.min(resultado.stockDisponible, v + 1))}
+                            className="text-on-surface-variant hover:text-primary transition-colors p-0.5"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">add</span>
+                          </button>
+                        </div>
+                      </div>
+
                       <button
-                        type="button"
-                        onClick={() => setCantidadAsignar((v) => Math.max(1, v - 1))}
-                        className="text-on-surface-variant hover:text-primary transition-colors p-0.5"
+                        onClick={handleAsignar}
+                        disabled={!cocineraSeleccionada || procesando}
+                        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-surface-tint active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                       >
+                        {procesando ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <span className="material-symbols-outlined text-[18px] icon-fill">add_link</span>
+                        )}
+                        Asignar {cantidadAsignar} unidad{cantidadAsignar !== 1 ? 'es' : ''}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Panel: Entrega */}
+              {panelActivo === 'entrega' && (
+                <div className="px-5 py-4">
+                  {resultado.asignaciones.length === 0 ? (
+                    <p className="text-outline text-sm italic text-center py-4">
+                      No hay asignaciones activas para registrar entrega.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-on-surface-variant text-xs">Indica cuántas unidades devuelve cada cocinera:</p>
+                      {resultado.asignaciones.map((asig) => (
+                        <div key={asig.id} className="flex items-center gap-3 p-3 rounded-xl bg-surface-container border border-outline-variant/20">
+                          <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                            {asig.nombreCocinera.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-on-surface text-sm font-medium truncate">{asig.nombreCocinera}</p>
+                            <p className="text-outline text-xs">{asig.stockAsignado} asignada{asig.stockAsignado !== 1 ? 's' : ''}</p>
+                          </div>
+                          <div className="flex items-center gap-1 border border-outline-variant rounded-xl bg-surface-container-low px-2 py-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setEntregaMap((prev) => ({ ...prev, [asig.id]: Math.max(1, (prev[asig.id] ?? 1) - 1) }))}
+                              className="text-on-surface-variant hover:text-primary transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">remove</span>
+                            </button>
+                            <span className="w-5 text-center text-on-surface font-bold text-xs">{entregaMap[asig.id] ?? 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => setEntregaMap((prev) => ({ ...prev, [asig.id]: Math.min(asig.stockAsignado, (prev[asig.id] ?? 1) + 1) }))}
+                              className="text-on-surface-variant hover:text-primary transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">add</span>
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => handleEntrega(asig.id)}
+                            disabled={procesando}
+                            className="flex items-center gap-1 px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-semibold hover:bg-surface-tint transition-colors disabled:opacity-50 shrink-0"
+                          >
+                            <span className="material-symbols-outlined text-[14px] icon-fill">assignment_return</span>
+                            Entregar
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Panel: Recibir */}
+              {panelActivo === 'recibir' && (
+                <div className="px-5 py-4 space-y-3">
+                  <p className="text-on-surface-variant text-xs">Registra unidades físicas recibidas. El stock total aumentará.</p>
+                  <div className="flex items-center gap-2 border border-outline-variant rounded-xl bg-surface-container-low px-4 py-3">
+                    <span className="material-symbols-outlined text-outline text-[18px]">add_box</span>
+                    <span className="text-on-surface-variant text-sm flex-1">Cantidad recibida:</span>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setCantidadRecibir((v) => Math.max(1, v - 1))} className="text-on-surface-variant hover:text-primary transition-colors">
                         <span className="material-symbols-outlined text-[18px]">remove</span>
                       </button>
-                      <span className="w-6 text-center text-on-surface font-bold text-sm">{cantidadAsignar}</span>
-                      <button
-                        type="button"
-                        onClick={() => setCantidadAsignar((v) => Math.min(resultado.stockDisponible, v + 1))}
-                        className="text-on-surface-variant hover:text-primary transition-colors p-0.5"
-                      >
+                      <span className="w-8 text-center text-on-surface font-bold text-base">{cantidadRecibir}</span>
+                      <button type="button" onClick={() => setCantidadRecibir((v) => v + 1)} className="text-on-surface-variant hover:text-primary transition-colors">
                         <span className="material-symbols-outlined text-[18px]">add</span>
                       </button>
                     </div>
                   </div>
-
                   <button
-                    onClick={handleAsignar}
-                    disabled={!cocineraSeleccionada || procesando}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-surface-tint active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleRecibirStock}
+                    disabled={procesando}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-surface-tint active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {procesando ? (
                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
-                      <span className="material-symbols-outlined text-[18px] icon-fill">add_link</span>
+                      <span className="material-symbols-outlined text-[18px] icon-fill">add_box</span>
                     )}
-                    Asignar {cantidadAsignar} unidad{cantidadAsignar !== 1 ? 'es' : ''}
+                    Confirmar {cantidadRecibir} unidad{cantidadRecibir !== 1 ? 'es' : ''} recibida{cantidadRecibir !== 1 ? 's' : ''}
                   </button>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Panel: Entrega (devolución) */}
-          {panelActivo === 'entrega' && (
-            <div className="bg-surface-container-lowest px-5 py-4">
-              {resultado.asignaciones.length === 0 ? (
-                <p className="text-outline text-sm italic text-center py-2">
-                  No hay asignaciones activas para registrar entrega.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  <p className="text-on-surface-variant text-xs mb-1">
-                    Indica cuántas unidades devuelve cada cocinera:
-                  </p>
-                  {resultado.asignaciones.map((asig) => (
-                    <div key={asig.id} className="flex items-center gap-3 p-3 rounded-xl bg-surface-container border border-outline-variant/20">
-                      <div className="w-8 h-8 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold text-xs shrink-0">
-                        {asig.nombreCocinera.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-on-surface text-sm font-medium truncate">{asig.nombreCocinera}</p>
-                        <p className="text-outline text-xs">{asig.stockAsignado} asignada{asig.stockAsignado !== 1 ? 's' : ''}</p>
-                      </div>
-
-                      {/* Selector de cantidad a devolver */}
-                      <div className="flex items-center gap-1 border border-outline-variant rounded-xl bg-surface-container-low px-2 py-1 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => setEntregaMap((prev) => ({
-                            ...prev,
-                            [asig.id]: Math.max(1, (prev[asig.id] ?? 1) - 1),
-                          }))}
-                          className="text-on-surface-variant hover:text-primary transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">remove</span>
-                        </button>
-                        <span className="w-5 text-center text-on-surface font-bold text-xs">
-                          {entregaMap[asig.id] ?? 1}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => setEntregaMap((prev) => ({
-                            ...prev,
-                            [asig.id]: Math.min(asig.stockAsignado, (prev[asig.id] ?? 1) + 1),
-                          }))}
-                          className="text-on-surface-variant hover:text-primary transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-[16px]">add</span>
-                        </button>
-                      </div>
-
-                      <button
-                        onClick={() => handleEntrega(asig.id)}
-                        disabled={procesando}
-                        className="flex items-center gap-1 px-3 py-2 rounded-xl bg-primary text-on-primary text-xs font-semibold hover:bg-surface-tint transition-colors disabled:opacity-50 shrink-0"
-                      >
-                        <span className="material-symbols-outlined text-[14px] icon-fill">assignment_return</span>
-                        Entregar
-                      </button>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
-          )}
 
-          {/* Panel: Recibir stock */}
-          {panelActivo === 'recibir' && (
-            <div className="bg-surface-container-lowest px-5 py-4 space-y-3">
-              <p className="text-on-surface-variant text-xs">
-                Registra unidades físicas recibidas. El stock total aumentará.
-              </p>
-              <div className="flex items-center gap-3">
-                <div className="flex-1 flex items-center gap-2 border border-outline-variant rounded-xl bg-surface-container-low px-4 py-3">
-                  <span className="material-symbols-outlined text-outline text-[18px]">add_box</span>
-                  <span className="text-on-surface-variant text-sm">Cantidad recibida:</span>
-                  <div className="flex items-center gap-2 ml-auto">
-                    <button
-                      type="button"
-                      onClick={() => setCantidadRecibir((v) => Math.max(1, v - 1))}
-                      className="text-on-surface-variant hover:text-primary transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">remove</span>
-                    </button>
-                    <span className="w-8 text-center text-on-surface font-bold text-base">{cantidadRecibir}</span>
-                    <button
-                      type="button"
-                      onClick={() => setCantidadRecibir((v) => v + 1)}
-                      className="text-on-surface-variant hover:text-primary transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[18px]">add</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={handleRecibirStock}
-                disabled={procesando}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-primary text-on-primary text-sm font-semibold hover:bg-surface-tint active:scale-[0.99] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {procesando ? (
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <span className="material-symbols-outlined text-[18px] icon-fill">add_box</span>
-                )}
-                Confirmar recepción de {cantidadRecibir} unidad{cantidadRecibir !== 1 ? 'es' : ''}
-              </button>
-            </div>
-          )}
-
-          {/* Feedback de acciones */}
-          {estadoAccion && (
-            <div className={`px-5 py-3 flex items-center gap-2 border-t ${
-              estadoAccion.exito
-                ? 'bg-primary/5 border-primary/20'
-                : 'bg-error-container border-error/20'
-            }`}>
-              <span className={`material-symbols-outlined text-[18px] icon-fill ${
-                estadoAccion.exito ? 'text-primary' : 'text-on-error-container'
+            {/* Feedback acciones */}
+            {estadoAccion && (
+              <div className={`px-5 py-3 flex items-center gap-2 border-t shrink-0 ${
+                estadoAccion.exito ? 'bg-primary/5 border-primary/20' : 'bg-error-container border-error/20'
               }`}>
-                {estadoAccion.exito ? 'check_circle' : 'error'}
-              </span>
-              <p className={`text-sm font-medium ${estadoAccion.exito ? 'text-primary' : 'text-on-error-container'}`}>
-                {estadoAccion.exito ?? estadoAccion.error}
-              </p>
-            </div>
-          )}
+                <span className={`material-symbols-outlined text-[18px] icon-fill ${
+                  estadoAccion.exito ? 'text-primary' : 'text-on-error-container'
+                }`}>
+                  {estadoAccion.exito ? 'check_circle' : 'error'}
+                </span>
+                <p className={`text-sm font-medium ${estadoAccion.exito ? 'text-primary' : 'text-on-error-container'}`}>
+                  {estadoAccion.exito ?? estadoAccion.error}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
