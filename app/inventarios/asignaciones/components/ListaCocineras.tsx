@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useTransition } from 'react'
+import { useState, useEffect, useCallback, useTransition, useRef } from 'react'
 import type { CocineraConInventario, UtensilioDisponible } from '../page'
 import {
   actualizarCantidadAsignacion,
@@ -33,13 +33,26 @@ function PanelCocinera({
   const [utensilioNuevo, setUtensilioNuevo] = useState<number | ''>('')
   const [cantidadNueva, setCantidadNueva] = useState(1)
   const [feedbackGlobal, setFeedbackGlobal] = useState<string | null>(null)
+  const [stockLiberado, setStockLiberado] = useState<{ nombre: string; cantidad: number } | null>(null)
   const [isPending, startTransition] = useTransition()
+
+  // Estado escáner de devolución
+  const [modoEscaner, setModoEscaner] = useState(false)
+  const [codigoEscaner, setCodigoEscaner] = useState('')
+  const [destacadoId, setDestacadoId] = useState<number | null>(null)
+  const [feedbackEscaner, setFeedbackEscaner] = useState<{ tipo: 'ok' | 'error'; msg: string } | null>(null)
+  const inputEscanerRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onCerrar])
+
+  // Enfocar input cuando se activa el modo escáner
+  useEffect(() => {
+    if (modoEscaner) inputEscanerRef.current?.focus()
+  }, [modoEscaner])
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
@@ -73,8 +86,9 @@ function PanelCocinera({
     })
   }
 
-  // Eliminar asignación
+  // Eliminar asignación y liberar stock
   const handleEliminar = (invId: number) => {
+    const asig = asignaciones.find((a) => a.id === invId)
     startTransition(async () => {
       const resultado = await eliminarAsignacion(invId)
       if (resultado?.error) {
@@ -82,6 +96,10 @@ function PanelCocinera({
       } else {
         setAsignaciones((prev) => prev.filter((a) => a.id !== invId))
         setConfirmandoId(null)
+        if (asig) {
+          setStockLiberado({ nombre: asig.utensilio.name, cantidad: asig.stockAsignado })
+          setTimeout(() => setStockLiberado(null), 3000)
+        }
         onCambio()
       }
     })
@@ -107,6 +125,33 @@ function PanelCocinera({
       }
     })
   }
+
+  // Procesar código escaneado para devolución
+  const procesarEscaneo = useCallback((codigo: string) => {
+    const skuNum = parseInt(codigo.replace(/\D/g, ''))
+    setCodigoEscaner('')
+
+    if (!skuNum) {
+      setFeedbackEscaner({ tipo: 'error', msg: 'Código no válido.' })
+      setTimeout(() => setFeedbackEscaner(null), 2500)
+      return
+    }
+
+    const asig = asignaciones.find((a) => a.utensilio.sku === skuNum)
+    if (!asig) {
+      setFeedbackEscaner({ tipo: 'error', msg: `SKU ${skuNum} no está en la lista de esta cocinera.` })
+      setTimeout(() => setFeedbackEscaner(null), 3000)
+      return
+    }
+
+    setDestacadoId(asig.id)
+    setFeedbackEscaner({ tipo: 'ok', msg: `Devolviendo: ${asig.utensilio.name}` })
+    setTimeout(() => {
+      handleEliminar(asig.id)
+      setDestacadoId(null)
+      setFeedbackEscaner(null)
+    }, 500)
+  }, [asignaciones, handleEliminar])
 
   const idsYaAsignados = new Set(asignaciones.map((a) => a.utensilio.id))
   const utensilioPorAgregar = utensiliosDisponibles.filter((u) => !idsYaAsignados.has(u.id))
@@ -148,6 +193,17 @@ function PanelCocinera({
               </div>
             </div>
             <button
+              onClick={() => setModoEscaner((v) => !v)}
+              title={modoEscaner ? 'Desactivar escáner de devolución' : 'Activar escáner de devolución'}
+              className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+                modoEscaner
+                  ? 'text-primary bg-primary/10'
+                  : 'text-outline hover:text-on-surface hover:bg-surface-container'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[20px] icon-fill">barcode_reader</span>
+            </button>
+            <button
               onClick={onCerrar}
               className="p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors shrink-0"
             >
@@ -155,6 +211,19 @@ function PanelCocinera({
             </button>
           </div>
         </div>
+
+        {/* Toast stock liberado */}
+        {stockLiberado && (
+          <div className="mx-5 mt-3 flex items-center gap-2.5 px-4 py-3 rounded-xl bg-primary/10 border border-primary/20 shrink-0">
+            <span className="material-symbols-outlined text-primary text-[18px] icon-fill">inventory_2</span>
+            <div className="min-w-0">
+              <p className="text-primary text-xs font-semibold truncate">{stockLiberado.nombre}</p>
+              <p className="text-primary/70 text-[11px]">
+                +{stockLiberado.cantidad} unidad{stockLiberado.cantidad !== 1 ? 'es' : ''} devuelta{stockLiberado.cantidad !== 1 ? 's' : ''} al stock
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Lista de utensilios — scroll */}
         <div className="flex-1 overflow-y-auto">
@@ -355,6 +424,46 @@ export default function ListaCocineras({ cocineras, utensiliosDisponibles }: Pro
   const [busqueda, setBusqueda] = useState('')
   const [cocineraActiva, setCocineraActiva] = useState<CocineraConInventario | null>(null)
   const [version, setVersion] = useState(0)
+  const [escuchando, setEscuchando] = useState(false)
+  const [sinSoporte, setSinSoporte] = useState(false)
+  const [errorVoz, setErrorVoz] = useState<string | null>(null)
+
+  // Reconocimiento de voz — compatible con Chrome Android (webkitSpeechRecognition)
+  const iniciarVoz = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) { setSinSoporte(true); return }
+
+    setErrorVoz(null)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rec: any = new SR()
+    rec.lang = 'es-CO'
+    rec.continuous = false
+    rec.interimResults = false
+    rec.maxAlternatives = 1
+
+    rec.onstart = () => setEscuchando(true)
+    rec.onend   = () => setEscuchando(false)
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onerror = (e: any) => {
+      setEscuchando(false)
+      if (e.error === 'not-allowed') {
+        setErrorVoz('Permiso de micrófono denegado. Actívalo en la configuración del navegador.')
+      } else if (e.error === 'no-speech') {
+        setErrorVoz('No se detectó voz. Intenta de nuevo.')
+      }
+      setTimeout(() => setErrorVoz(null), 4000)
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    rec.onresult = (e: any) => {
+      const texto: string = e.results[0][0].transcript.trim()
+      setBusqueda(texto)
+    }
+
+    try { rec.start() } catch { setEscuchando(false) }
+  }, [])
 
   const cocinerasFiltradas = cocineras.filter((c) =>
     busqueda === '' ||
@@ -383,24 +492,76 @@ export default function ListaCocineras({ cocineras, utensiliosDisponibles }: Pro
         </div>
       </div>
 
-      {/* Búsqueda */}
+      {/* Búsqueda + Voz */}
       <div className="mb-5 relative">
-        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline">
+        <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline pointer-events-none">
           <span className="material-symbols-outlined text-[20px]">search</span>
         </div>
+
         <input
           type="text"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar cocinera por nombre o cédula..."
-          className="w-full pl-11 pr-10 py-3 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
+          placeholder={escuchando ? 'Escuchando...' : 'Buscar por nombre o cédula...'}
+          className={`w-full pl-11 pr-20 py-3 rounded-xl border text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 transition-all bg-surface-container-lowest ${
+            escuchando
+              ? 'border-primary ring-2 ring-primary/20 placeholder:text-primary'
+              : 'border-outline-variant focus:ring-primary focus:border-primary'
+          }`}
         />
-        {busqueda && (
-          <button onClick={() => setBusqueda('')} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
+
+        {/* Botón limpiar */}
+        {busqueda && !escuchando && (
+          <button
+            onClick={() => setBusqueda('')}
+            className="absolute right-11 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors"
+          >
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         )}
+
+        {/* Botón micrófono */}
+        <button
+          onClick={iniciarVoz}
+          disabled={escuchando}
+          title={sinSoporte ? 'Tu navegador no soporta reconocimiento de voz' : 'Buscar por voz'}
+          className={`absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-lg transition-all ${
+            escuchando
+              ? 'text-primary bg-primary/10 animate-pulse cursor-default'
+              : sinSoporte
+              ? 'text-outline/40 cursor-not-allowed'
+              : 'text-outline hover:text-primary hover:bg-primary/10'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[20px] icon-fill">
+            {escuchando ? 'mic' : 'mic'}
+          </span>
+        </button>
       </div>
+
+      {/* Hint voz activa */}
+      {escuchando && (
+        <div className="flex items-center justify-center gap-2 mb-4 py-2 px-4 rounded-xl bg-primary/8 border border-primary/20">
+          <div className="flex gap-0.5 items-end h-4">
+            {[2, 4, 3, 5, 2].map((h, i) => (
+              <div
+                key={i}
+                className="w-1 bg-primary rounded-full animate-pulse"
+                style={{ height: `${h * 3}px`, animationDelay: `${i * 0.1}s` }}
+              />
+            ))}
+          </div>
+          <span className="text-primary text-xs font-semibold">Di el nombre de la cocinera...</span>
+        </div>
+      )}
+
+      {/* Error de voz */}
+      {errorVoz && (
+        <div className="flex items-start gap-2 mb-4 py-2.5 px-4 rounded-xl bg-error-container border border-error/20">
+          <span className="material-symbols-outlined text-on-error-container text-[16px] icon-fill shrink-0 mt-0.5">mic_off</span>
+          <p className="text-on-error-container text-xs">{errorVoz}</p>
+        </div>
+      )}
 
       <p className="text-on-surface-variant text-xs font-medium mb-4">
         {cocinerasFiltradas.length} resultado{cocinerasFiltradas.length !== 1 ? 's' : ''}

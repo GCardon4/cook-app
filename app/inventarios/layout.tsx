@@ -9,8 +9,7 @@ import { accionCerrarSesion } from '@/app/login/actions'
 const elementosNav = [
   { href: '/inventarios', icono: 'inventory_2', etiqueta: 'Inventario' },
   { href: '/inventarios/escanear', icono: 'qr_code_scanner', etiqueta: 'Escanear' },
-  { href: '/inventarios/asignaciones', icono: 'assignment_ind', etiqueta: 'Mis Asignaciones' },
-  { href: '/inventarios/historial', icono: 'history', etiqueta: 'Historial' },
+  { href: '/inventarios/asignaciones', icono: 'group', etiqueta: 'Cocineras' },
 ]
 
 export default function LayoutInventarios({

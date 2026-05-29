@@ -111,7 +111,7 @@ export default async function PaginaAsignaciones() {
   return (
     <div>
       <div className="mb-6">
-        <h2 className="text-on-surface font-bold text-2xl md:text-3xl">Asignaciones</h2>
+        <h2 className="text-on-surface font-bold text-2xl md:text-3xl">Cocineras</h2>
         <p className="text-on-surface-variant text-base mt-1">
           {cocineras.length} cocinera{cocineras.length !== 1 ? 's' : ''} ·{' '}
           {cocineras.filter((c) => c.asignaciones.length > 0).length} con utensilios asignados
