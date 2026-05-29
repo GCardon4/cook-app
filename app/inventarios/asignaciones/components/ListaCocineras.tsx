@@ -14,6 +14,27 @@ function formatearDoc(doc: number | null) {
   return doc.toLocaleString('es-CO')
 }
 
+// Construir URL de WhatsApp con listado de utensilios (sin cédula)
+function construirUrlWhatsAppInventario(
+  cocinera: CocineraConInventario,
+  asignaciones: CocineraConInventario['asignaciones']
+): string {
+  const totalUnidades = asignaciones.reduce((acc, a) => acc + a.stockAsignado, 0)
+  const lista =
+    asignaciones.length > 0
+      ? asignaciones.map((a) => `• ${a.utensilio.name} × ${a.stockAsignado}`).join('\n')
+      : '• Sin utensilios asignados'
+
+  const mensaje =
+    `Hola ${cocinera.name}! 👋\n\n` +
+    `Tus utensilios asignados:\n\n` +
+    `${lista}\n\n` +
+    `Total: ${asignaciones.length} tipo(s) · ${totalUnidades} unidad(es)\n\n` +
+    `_KitchenLogix_ 🍽️`
+
+  return `https://wa.me/57${cocinera.phone}?text=${encodeURIComponent(mensaje)}`
+}
+
 // ─── Panel de detalle de cocinera ─────────────────────────────────────────────
 function PanelCocinera({
   cocinera,
@@ -35,56 +56,8 @@ function PanelCocinera({
   const [feedbackGlobal, setFeedbackGlobal] = useState<string | null>(null)
   const [stockLiberado, setStockLiberado] = useState<{ nombre: string; cantidad: number } | null>(null)
   const [isPending, startTransition] = useTransition()
-
-  // Estado escáner de devolución
-  const [modoEscaner, setModoEscaner] = useState(false)
-  const [codigoEscaner, setCodigoEscaner] = useState('')
   const [destacadoId, setDestacadoId] = useState<number | null>(null)
   const [feedbackEscaner, setFeedbackEscaner] = useState<{ tipo: 'ok' | 'error'; msg: string } | null>(null)
-  const inputEscanerRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar() }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onCerrar])
-
-  // Enfocar input cuando se activa el modo escáner
-  useEffect(() => {
-    if (modoEscaner) inputEscanerRef.current?.focus()
-  }, [modoEscaner])
-
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [])
-
-  // Actualizar cantidad con +/-
-  const cambiarCantidad = (invId: number, delta: number) => {
-    const actual = asignaciones.find((a) => a.id === invId)
-    if (!actual) return
-    const nueva = Math.max(1, actual.stockAsignado + delta)
-    if (nueva === actual.stockAsignado) return
-
-    // Optimista
-    setAsignaciones((prev) =>
-      prev.map((a) => a.id === invId ? { ...a, stockAsignado: nueva } : a)
-    )
-    setErrores((prev) => { const n = { ...prev }; delete n[invId]; return n })
-
-    startTransition(async () => {
-      const resultado = await actualizarCantidadAsignacion(invId, nueva)
-      if (resultado?.error) {
-        // Revertir
-        setAsignaciones((prev) =>
-          prev.map((a) => a.id === invId ? { ...a, stockAsignado: actual.stockAsignado } : a)
-        )
-        setErrores((prev) => ({ ...prev, [invId]: resultado.error! }))
-      } else {
-        onCambio()
-      }
-    })
-  }
 
   // Eliminar asignación y liberar stock
   const handleEliminar = (invId: number) => {
@@ -105,45 +78,20 @@ function PanelCocinera({
     })
   }
 
-  // Agregar utensilio nuevo
-  const handleAgregar = () => {
-    if (!utensilioNuevo) return
-    setFeedbackGlobal(null)
-
-    startTransition(async () => {
-      const resultado = await agregarUtensilioACocinera(cocinera.id, Number(utensilioNuevo), cantidadNueva)
-      if (resultado?.error) {
-        setFeedbackGlobal(resultado.error)
-      } else {
-        // El servidor revalidó, recargamos datos locales desde props no es posible aquí
-        // así que cerramos el sub-panel y notificamos al padre para refrescar
-        setAgregando(false)
-        setUtensilioNuevo('')
-        setCantidadNueva(1)
-        onCambio()
-        onCerrar() // Cierra el panel para que el Server Component recargue los datos
-      }
-    })
-  }
-
-  // Procesar código escaneado para devolución
+  // Procesar código escaneado: si el SKU está en la lista, elimina la asignación
   const procesarEscaneo = useCallback((codigo: string) => {
     const skuNum = parseInt(codigo.replace(/\D/g, ''))
-    setCodigoEscaner('')
-
     if (!skuNum) {
       setFeedbackEscaner({ tipo: 'error', msg: 'Código no válido.' })
       setTimeout(() => setFeedbackEscaner(null), 2500)
       return
     }
-
     const asig = asignaciones.find((a) => a.utensilio.sku === skuNum)
     if (!asig) {
       setFeedbackEscaner({ tipo: 'error', msg: `SKU ${skuNum} no está en la lista de esta cocinera.` })
       setTimeout(() => setFeedbackEscaner(null), 3000)
       return
     }
-
     setDestacadoId(asig.id)
     setFeedbackEscaner({ tipo: 'ok', msg: `Devolviendo: ${asig.utensilio.name}` })
     setTimeout(() => {
@@ -151,7 +99,86 @@ function PanelCocinera({
       setDestacadoId(null)
       setFeedbackEscaner(null)
     }, 500)
-  }, [asignaciones, handleEliminar])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [asignaciones])
+
+  // Ref siempre apunta al procesarEscaneo con las asignaciones más recientes
+  const procesarEscaneoRef = useRef(procesarEscaneo)
+  useEffect(() => { procesarEscaneoRef.current = procesarEscaneo }, [procesarEscaneo])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCerrar() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onCerrar])
+
+  // Escáner siempre activo: captura ráfaga de teclas del lector hardware (< 120ms entre chars)
+  useEffect(() => {
+    const buf = { chars: '', lastMs: 0 }
+    const onKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
+      const now = Date.now()
+      if (e.key === 'Enter') {
+        if (buf.chars.length > 2) procesarEscaneoRef.current(buf.chars)
+        buf.chars = ''
+        return
+      }
+      if (now - buf.lastMs > 120) buf.chars = ''
+      buf.lastMs = now
+      if (e.key.length === 1) buf.chars += e.key
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = '' }
+  }, [])
+
+  // Actualizar cantidad con +/-
+  const cambiarCantidad = (invId: number, delta: number) => {
+    const actual = asignaciones.find((a) => a.id === invId)
+    if (!actual) return
+    const nueva = Math.max(1, actual.stockAsignado + delta)
+    if (nueva === actual.stockAsignado) return
+
+    setAsignaciones((prev) =>
+      prev.map((a) => a.id === invId ? { ...a, stockAsignado: nueva } : a)
+    )
+    setErrores((prev) => { const n = { ...prev }; delete n[invId]; return n })
+
+    startTransition(async () => {
+      const resultado = await actualizarCantidadAsignacion(invId, nueva)
+      if (resultado?.error) {
+        setAsignaciones((prev) =>
+          prev.map((a) => a.id === invId ? { ...a, stockAsignado: actual.stockAsignado } : a)
+        )
+        setErrores((prev) => ({ ...prev, [invId]: resultado.error! }))
+      } else {
+        onCambio()
+      }
+    })
+  }
+
+  // Agregar utensilio nuevo
+  const handleAgregar = () => {
+    if (!utensilioNuevo) return
+    setFeedbackGlobal(null)
+    startTransition(async () => {
+      const resultado = await agregarUtensilioACocinera(cocinera.id, Number(utensilioNuevo), cantidadNueva)
+      if (resultado?.error) {
+        setFeedbackGlobal(resultado.error)
+      } else {
+        setAgregando(false)
+        setUtensilioNuevo('')
+        setCantidadNueva(1)
+        onCambio()
+        onCerrar()
+      }
+    })
+  }
 
   const idsYaAsignados = new Set(asignaciones.map((a) => a.utensilio.id))
   const utensilioPorAgregar = utensiliosDisponibles.filter((u) => !idsYaAsignados.has(u.id))
@@ -192,17 +219,19 @@ function PanelCocinera({
                 </span>
               </div>
             </div>
-            <button
-              onClick={() => setModoEscaner((v) => !v)}
-              title={modoEscaner ? 'Desactivar escáner de devolución' : 'Activar escáner de devolución'}
-              className={`p-1.5 rounded-lg transition-colors shrink-0 ${
-                modoEscaner
-                  ? 'text-primary bg-primary/10'
-                  : 'text-outline hover:text-on-surface hover:bg-surface-container'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[20px] icon-fill">barcode_reader</span>
-            </button>
+            {cocinera.phone && (
+              <a
+                href={construirUrlWhatsAppInventario(cocinera, asignaciones)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-lg text-[#25D366] hover:bg-[#25D366]/10 transition-colors shrink-0"
+                title="Enviar WhatsApp con listado"
+              >
+                <svg className="w-[20px] h-[20px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                </svg>
+              </a>
+            )}
             <button
               onClick={onCerrar}
               className="p-1.5 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container transition-colors shrink-0"
@@ -211,6 +240,26 @@ function PanelCocinera({
             </button>
           </div>
         </div>
+
+        {/* Toast feedback escáner */}
+        {feedbackEscaner && (
+          <div className={`mx-5 mt-3 flex items-center gap-2.5 px-4 py-3 rounded-xl shrink-0 ${
+            feedbackEscaner.tipo === 'ok'
+              ? 'bg-primary/10 border border-primary/20'
+              : 'bg-error-container border border-error/20'
+          }`}>
+            <span className={`material-symbols-outlined text-[18px] icon-fill ${
+              feedbackEscaner.tipo === 'ok' ? 'text-primary' : 'text-on-error-container'
+            }`}>
+              {feedbackEscaner.tipo === 'ok' ? 'barcode_reader' : 'error'}
+            </span>
+            <p className={`text-xs font-semibold truncate ${
+              feedbackEscaner.tipo === 'ok' ? 'text-primary' : 'text-on-error-container'
+            }`}>
+              {feedbackEscaner.msg}
+            </p>
+          </div>
+        )}
 
         {/* Toast stock liberado */}
         {stockLiberado && (
@@ -240,7 +289,7 @@ function PanelCocinera({
                 const errorFila = errores[asig.id]
 
                 return (
-                  <li key={asig.id} className="px-5 py-3.5">
+                  <li key={asig.id} className={`px-5 py-3.5 transition-colors ${destacadoId === asig.id ? 'bg-primary/8' : ''}`}>
                     <div className="flex items-center gap-3">
                       {/* Icono */}
                       <div className="w-9 h-9 rounded-xl bg-primary/8 text-primary flex items-center justify-center shrink-0">

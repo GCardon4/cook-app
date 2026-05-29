@@ -117,6 +117,39 @@ export async function actualizarCocinera(
   redirect('/admin/cocineras')
 }
 
+// Sincronizar escuelas asignadas a una cocinera
+export async function asignarEscuelasCocinera(
+  cookId: number,
+  schoolIds: number[]
+): Promise<EstadoFormularioCocinera> {
+  const supabase = await crearClienteServidor()
+
+  const { error: deleteError } = await supabase
+    .from('cook_school')
+    .delete()
+    .eq('cook_id', cookId)
+
+  if (deleteError) {
+    console.error('Error eliminando escuelas:', deleteError.message)
+    return { error: 'No se pudieron actualizar las escuelas. Intenta de nuevo.' }
+  }
+
+  if (schoolIds.length > 0) {
+    const { error: insertError } = await supabase
+      .from('cook_school')
+      .insert(schoolIds.map((schoolId) => ({ cook_id: cookId, school_id: schoolId })))
+
+    if (insertError) {
+      console.error('Error asignando escuelas:', insertError.message)
+      return { error: 'No se pudieron asignar las escuelas. Intenta de nuevo.' }
+    }
+  }
+
+  revalidatePath('/admin')
+  revalidatePath('/admin/cocineras')
+  return { exito: 'Escuelas actualizadas correctamente.' }
+}
+
 // Eliminar cocinera de Supabase
 export async function eliminarCocinera(id: number): Promise<EstadoFormularioCocinera> {
   const supabase = await crearClienteServidor()

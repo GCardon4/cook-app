@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { crearClienteServidor } from '@/lib/supabase/server'
 import TablaCocineras from './components/TablaCocineras'
 
-// Cargar cocineras con escuelas e inventario desde Supabase
+// Cargar cocineras con escuelas, utensilios e inventario desde Supabase
 async function obtenerCocineras() {
   const supabase = await crearClienteServidor()
 
@@ -18,7 +18,10 @@ async function obtenerCocineras() {
         id,
         school:school_id ( id, name )
       ),
-      inventory ( id )
+      inventory (
+        id,
+        utensils:utensils_id ( id, name, sku )
+      )
     `)
     .order('name', { ascending: true })
 
@@ -33,12 +36,24 @@ async function obtenerCocineras() {
       school: { id: number; name: string }[] | null
     }[]
 
+    const inventario = c.inventory as {
+      id: number
+      utensils: { id: number; name: string; sku: number | null }[] | null
+    }[]
+
     const escuelas = cookSchool
       .map((cs) => {
         const s = Array.isArray(cs.school) ? cs.school[0] : cs.school
         return s ? { id: s.id, name: s.name } : null
       })
       .filter(Boolean) as { id: number; name: string }[]
+
+    const utensilios = inventario
+      .map((inv) => {
+        const u = Array.isArray(inv.utensils) ? inv.utensils[0] : inv.utensils
+        return u ? { id: u.id, name: u.name, sku: u.sku } : null
+      })
+      .filter(Boolean) as { id: number; name: string; sku: number | null }[]
 
     return {
       id: c.id as number,
@@ -47,13 +62,27 @@ async function obtenerCocineras() {
       phone: c.phone as number | null,
       created_at: c.created_at as string,
       escuelas,
-      totalUtensilios: (c.inventory as { id: number }[]).length,
+      utensilios,
+      totalUtensilios: inventario.length,
     }
   })
 }
 
+// Cargar todas las escuelas disponibles para el modal de asignación
+async function obtenerTodasEscuelas() {
+  const supabase = await crearClienteServidor()
+  const { data } = await supabase
+    .from('school')
+    .select('id, name')
+    .order('name', { ascending: true })
+  return (data ?? []) as { id: number; name: string }[]
+}
+
 export default async function PaginaCocineras() {
-  const cocineras = await obtenerCocineras()
+  const [cocineras, todasEscuelas] = await Promise.all([
+    obtenerCocineras(),
+    obtenerTodasEscuelas(),
+  ])
 
   const conEscuela = cocineras.filter((c) => c.escuelas.length > 0).length
   const sinEscuela = cocineras.filter((c) => c.escuelas.length === 0).length
@@ -121,7 +150,7 @@ export default async function PaginaCocineras() {
       </div>
 
       {/* Tabla interactiva */}
-      <TablaCocineras cocineras={cocineras} />
+      <TablaCocineras cocineras={cocineras} todasEscuelas={todasEscuelas} />
     </div>
   )
 }
