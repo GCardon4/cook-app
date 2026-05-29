@@ -1,13 +1,8 @@
 'use client'
 
-import { useActionState, useState, useEffect } from 'react'
+import { useActionState, useState } from 'react'
 import { accionLogin, type EstadoLogin } from './actions'
-
-// Tipo del evento nativo de instalación PWA (no incluido en lib.dom por defecto)
-interface BeforeInstallPromptEvent extends Event {
-  prompt(): Promise<void>
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
-}
+import InstallPWA from '@/components/pwa/InstallPWA'
 
 export default function PaginaLogin() {
   const [mostrarContrasena, setMostrarContrasena] = useState(false)
@@ -15,39 +10,6 @@ export default function PaginaLogin() {
     accionLogin,
     null
   )
-
-  // Estado del prompt de instalación PWA
-  const [promptPWA, setPromptPWA] = useState<BeforeInstallPromptEvent | null>(null)
-  const [appInstalada, setAppInstalada] = useState(false)
-  const [instalando, setInstalando] = useState(false)
-
-  useEffect(() => {
-    const onPrompt = (e: Event) => {
-      e.preventDefault()
-      setPromptPWA(e as BeforeInstallPromptEvent)
-    }
-    const onInstalada = () => {
-      setAppInstalada(true)
-      setPromptPWA(null)
-    }
-    window.addEventListener('beforeinstallprompt', onPrompt)
-    window.addEventListener('appinstalled', onInstalada)
-    return () => {
-      window.removeEventListener('beforeinstallprompt', onPrompt)
-      window.removeEventListener('appinstalled', onInstalada)
-    }
-  }, [])
-
-  // Activar diálogo de instalación de la PWA
-  const instalarApp = async () => {
-    if (!promptPWA) return
-    setInstalando(true)
-    promptPWA.prompt()
-    const { outcome } = await promptPWA.userChoice
-    if (outcome === 'accepted') setAppInstalada(true)
-    setPromptPWA(null)
-    setInstalando(false)
-  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background">
@@ -249,36 +211,7 @@ export default function PaginaLogin() {
 
           {/* Botón de instalación PWA */}
           <div className="mt-8 pt-6 border-t border-outline-variant/30">
-            {appInstalada ? (
-              <div className="flex items-center justify-center gap-2 text-primary text-sm">
-                <span className="material-symbols-outlined text-[18px] icon-fill">check_circle</span>
-                <span className="font-medium">App instalada correctamente</span>
-              </div>
-            ) : promptPWA ? (
-              <button
-                type="button"
-                onClick={instalarApp}
-                disabled={instalando}
-                className="w-full flex items-center justify-center gap-2.5 py-3 px-5 rounded-xl border-2 border-primary/30 bg-primary/5 text-primary text-sm font-semibold hover:bg-primary/10 hover:border-primary/50 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {instalando ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-                    Instalando...
-                  </>
-                ) : (
-                  <>
-                    <span className="material-symbols-outlined text-[20px] icon-fill">install_mobile</span>
-                    Instalar App en este dispositivo
-                  </>
-                )}
-              </button>
-            ) : (
-              <p className="text-center text-on-surface-variant text-xs">
-                <span className="material-symbols-outlined text-[14px] align-middle mr-1">info</span>
-                Para instalar la app, usa el menú de tu navegador &rsaquo; &ldquo;Añadir a pantalla de inicio&rdquo;
-              </p>
-            )}
+            <InstallPWA variante="login" />
           </div>
         </div>
       </div>
