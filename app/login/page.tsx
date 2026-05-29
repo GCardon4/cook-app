@@ -1,42 +1,53 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useState, useEffect } from 'react'
 import { accionLogin, type EstadoLogin } from './actions'
 
-// Tipos de panel disponibles en el sistema
-type TipoPanel = 'admin' | 'inventarios'
-
-interface ConfiguracionPanel {
-  tipo: TipoPanel
-  titulo: string
-  descripcion: string
-  icono: string
+// Tipo del evento nativo de instalación PWA (no incluido en lib.dom por defecto)
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
 }
 
-const paneles: ConfiguracionPanel[] = [
-  {
-    tipo: 'admin',
-    titulo: 'Administración',
-    descripcion: 'Gestión completa del sistema, colegios y cocineras',
-    icono: 'admin_panel_settings',
-  },
-  {
-    tipo: 'inventarios',
-    titulo: 'Inventarios',
-    descripcion: 'Control y seguimiento de utensilios de cocina',
-    icono: 'inventory_2',
-  },
-]
-
 export default function PaginaLogin() {
-  const [panelSeleccionado, setPanelSeleccionado] =
-    useState<TipoPanel>('inventarios')
   const [mostrarContrasena, setMostrarContrasena] = useState(false)
-
   const [estado, accion, estaCargando] = useActionState<EstadoLogin, FormData>(
     accionLogin,
     null
   )
+
+  // Estado del prompt de instalación PWA
+  const [promptPWA, setPromptPWA] = useState<BeforeInstallPromptEvent | null>(null)
+  const [appInstalada, setAppInstalada] = useState(false)
+  const [instalando, setInstalando] = useState(false)
+
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault()
+      setPromptPWA(e as BeforeInstallPromptEvent)
+    }
+    const onInstalada = () => {
+      setAppInstalada(true)
+      setPromptPWA(null)
+    }
+    window.addEventListener('beforeinstallprompt', onPrompt)
+    window.addEventListener('appinstalled', onInstalada)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onPrompt)
+      window.removeEventListener('appinstalled', onInstalada)
+    }
+  }, [])
+
+  // Activar diálogo de instalación de la PWA
+  const instalarApp = async () => {
+    if (!promptPWA) return
+    setInstalando(true)
+    promptPWA.prompt()
+    const { outcome } = await promptPWA.userChoice
+    if (outcome === 'accepted') setAppInstalada(true)
+    setPromptPWA(null)
+    setInstalando(false)
+  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-background">
@@ -54,16 +65,14 @@ export default function PaginaLogin() {
         <div
           className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10"
           style={{
-            background:
-              'radial-gradient(circle, #6bd8cb 0%, transparent 70%)',
+            background: 'radial-gradient(circle, #6bd8cb 0%, transparent 70%)',
             transform: 'translate(30%, -30%)',
           }}
         />
         <div
           className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-10"
           style={{
-            background:
-              'radial-gradient(circle, #6bd8cb 0%, transparent 70%)',
+            background: 'radial-gradient(circle, #6bd8cb 0%, transparent 70%)',
             transform: 'translate(-30%, 30%)',
           }}
         />
@@ -114,9 +123,7 @@ export default function PaginaLogin() {
                   {item.icono}
                 </span>
               </div>
-              <span className="text-white/80 text-sm font-medium">
-                {item.texto}
-              </span>
+              <span className="text-white/80 text-sm font-medium">{item.texto}</span>
             </div>
           ))}
 
@@ -145,75 +152,14 @@ export default function PaginaLogin() {
         <div className="w-full max-w-md">
           {/* Encabezado del formulario */}
           <div className="mb-8">
-            <h2 className="text-on-surface font-bold text-3xl mb-1">
-              Bienvenido
-            </h2>
+            <h2 className="text-on-surface font-bold text-3xl mb-1">Bienvenido</h2>
             <p className="text-on-surface-variant text-base">
               Ingresa tus credenciales para acceder al sistema
             </p>
           </div>
 
-          {/* Selector de panel */}
-          <div className="mb-6">
-            <p className="text-on-surface-variant text-xs font-semibold uppercase tracking-widest mb-3">
-              Seleccionar Panel
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {paneles.map((panel) => {
-                const estaActivo = panelSeleccionado === panel.tipo
-                return (
-                  <button
-                    key={panel.tipo}
-                    type="button"
-                    onClick={() => setPanelSeleccionado(panel.tipo)}
-                    className={`relative flex flex-col items-start p-4 rounded-xl border-2 text-left transition-all duration-200 ${
-                      estaActivo
-                        ? 'border-primary bg-primary/5 shadow-sm'
-                        : 'border-outline-variant bg-surface-container-low hover:border-outline hover:bg-surface-container'
-                    }`}
-                  >
-                    {estaActivo && (
-                      <div className="absolute top-3 right-3 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
-                        <span className="material-symbols-outlined text-white text-[14px] icon-fill">
-                          check
-                        </span>
-                      </div>
-                    )}
-                    <div
-                      className={`w-9 h-9 rounded-lg flex items-center justify-center mb-2 ${
-                        estaActivo
-                          ? 'bg-primary/15 text-primary'
-                          : 'bg-surface-container text-on-surface-variant'
-                      }`}
-                    >
-                      <span className="material-symbols-outlined text-[20px]">
-                        {panel.icono}
-                      </span>
-                    </div>
-                    <span
-                      className={`font-semibold text-sm ${
-                        estaActivo ? 'text-primary' : 'text-on-surface'
-                      }`}
-                    >
-                      {panel.titulo}
-                    </span>
-                    <span className="text-on-surface-variant text-xs leading-tight mt-0.5">
-                      {panel.descripcion}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
           {/* Formulario */}
           <form action={accion} className="space-y-4">
-            <input
-              type="hidden"
-              name="panel"
-              value={panelSeleccionado}
-            />
-
             {/* Campo Email */}
             <div>
               <label
@@ -224,9 +170,7 @@ export default function PaginaLogin() {
               </label>
               <div className="relative">
                 <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline">
-                  <span className="material-symbols-outlined text-[20px]">
-                    mail
-                  </span>
+                  <span className="material-symbols-outlined text-[20px]">mail</span>
                 </div>
                 <input
                   id="email"
@@ -250,9 +194,7 @@ export default function PaginaLogin() {
               </label>
               <div className="relative">
                 <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-outline">
-                  <span className="material-symbols-outlined text-[20px]">
-                    lock
-                  </span>
+                  <span className="material-symbols-outlined text-[20px]">lock</span>
                 </div>
                 <input
                   id="contrasena"
@@ -281,9 +223,7 @@ export default function PaginaLogin() {
                 <span className="material-symbols-outlined text-on-error-container text-[18px] icon-fill">
                   error
                 </span>
-                <p className="text-on-error-container text-sm">
-                  {estado.error}
-                </p>
+                <p className="text-on-error-container text-sm">{estado.error}</p>
               </div>
             )}
 
@@ -300,26 +240,45 @@ export default function PaginaLogin() {
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-[20px] icon-fill">
-                    login
-                  </span>
+                  <span className="material-symbols-outlined text-[20px] icon-fill">login</span>
                   Ingresar al Sistema
                 </>
               )}
             </button>
           </form>
 
-          {/* Panel indicador */}
-          <div className="mt-6 flex items-center justify-center gap-2 text-on-surface-variant">
-            <span className="material-symbols-outlined text-[16px]">info</span>
-            <p className="text-xs">
-              Accediendo al panel de{' '}
-              <span className="font-semibold text-primary capitalize">
-                {panelSeleccionado === 'admin'
-                  ? 'Administración'
-                  : 'Inventarios'}
-              </span>
-            </p>
+          {/* Botón de instalación PWA */}
+          <div className="mt-8 pt-6 border-t border-outline-variant/30">
+            {appInstalada ? (
+              <div className="flex items-center justify-center gap-2 text-primary text-sm">
+                <span className="material-symbols-outlined text-[18px] icon-fill">check_circle</span>
+                <span className="font-medium">App instalada correctamente</span>
+              </div>
+            ) : promptPWA ? (
+              <button
+                type="button"
+                onClick={instalarApp}
+                disabled={instalando}
+                className="w-full flex items-center justify-center gap-2.5 py-3 px-5 rounded-xl border-2 border-primary/30 bg-primary/5 text-primary text-sm font-semibold hover:bg-primary/10 hover:border-primary/50 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {instalando ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                    Instalando...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[20px] icon-fill">install_mobile</span>
+                    Instalar App en este dispositivo
+                  </>
+                )}
+              </button>
+            ) : (
+              <p className="text-center text-on-surface-variant text-xs">
+                <span className="material-symbols-outlined text-[14px] align-middle mr-1">info</span>
+                Para instalar la app, usa el menú de tu navegador &rsaquo; &ldquo;Añadir a pantalla de inicio&rdquo;
+              </p>
+            )}
           </div>
         </div>
       </div>

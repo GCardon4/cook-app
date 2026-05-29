@@ -78,7 +78,7 @@ function PanelCocinera({
     })
   }
 
-  // Procesar código escaneado: si el SKU está en la lista, elimina la asignación
+  // Procesar código escaneado: descuenta 1 unidad; si llega a 0, elimina la asignación
   const procesarEscaneo = useCallback((codigo: string) => {
     const skuNum = parseInt(codigo.replace(/\D/g, ''))
     if (!skuNum) {
@@ -92,15 +92,48 @@ function PanelCocinera({
       setTimeout(() => setFeedbackEscaner(null), 3000)
       return
     }
+
+    const nuevaCantidad = asig.stockAsignado - 1
     setDestacadoId(asig.id)
-    setFeedbackEscaner({ tipo: 'ok', msg: `Devolviendo: ${asig.utensilio.name}` })
-    setTimeout(() => {
-      handleEliminar(asig.id)
-      setDestacadoId(null)
-      setFeedbackEscaner(null)
-    }, 500)
+    setTimeout(() => setDestacadoId(null), 800)
+
+    if (nuevaCantidad <= 0) {
+      // Última unidad: eliminar asignación completa
+      setFeedbackEscaner({ tipo: 'ok', msg: `Devuelto: ${asig.utensilio.name}` })
+      setAsignaciones((prev) => prev.filter((a) => a.id !== asig.id))
+      startTransition(async () => {
+        const resultado = await eliminarAsignacion(asig.id)
+        if (resultado?.error) {
+          setAsignaciones((prev) => [...prev, asig])
+          setFeedbackEscaner({ tipo: 'error', msg: resultado.error })
+        } else {
+          setStockLiberado({ nombre: asig.utensilio.name, cantidad: 1 })
+          setTimeout(() => setStockLiberado(null), 3000)
+          onCambio()
+        }
+        setTimeout(() => setFeedbackEscaner(null), 2500)
+      })
+    } else {
+      // Decrementar en 1 con actualización optimista inmediata
+      setFeedbackEscaner({ tipo: 'ok', msg: `${asig.utensilio.name}: ${asig.stockAsignado} → ${nuevaCantidad}` })
+      setAsignaciones((prev) =>
+        prev.map((a) => a.id === asig.id ? { ...a, stockAsignado: nuevaCantidad } : a)
+      )
+      startTransition(async () => {
+        const resultado = await actualizarCantidadAsignacion(asig.id, nuevaCantidad)
+        if (resultado?.error) {
+          setAsignaciones((prev) =>
+            prev.map((a) => a.id === asig.id ? { ...a, stockAsignado: asig.stockAsignado } : a)
+          )
+          setFeedbackEscaner({ tipo: 'error', msg: resultado.error })
+        } else {
+          onCambio()
+        }
+        setTimeout(() => setFeedbackEscaner(null), 2500)
+      })
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [asignaciones])
+  }, [asignaciones, onCambio])
 
   // Ref siempre apunta al procesarEscaneo con las asignaciones más recientes
   const procesarEscaneoRef = useRef(procesarEscaneo)
