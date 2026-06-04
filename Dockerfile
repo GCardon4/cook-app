@@ -15,13 +15,6 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Las variables NEXT_PUBLIC_* se incrustan en el bundle en tiempo de build.
-# Coolify las inyecta como build args; se exponen aquí para que next build las vea.
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
-ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
-
 RUN npm run build
 
 # ─── Stage 3: runner (imagen mínima) ──────────────────────────────────────────
