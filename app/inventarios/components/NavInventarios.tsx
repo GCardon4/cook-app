@@ -137,14 +137,48 @@ export default function NavInventarios({ esAdmin, children }: Props) {
       </main>
 
       {/* Navegación inferior móvil */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex justify-around items-center px-2 py-2 bg-surface-container-lowest border-t border-outline-variant/30 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
-        {elementosNav.map((item) => {
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 flex items-end px-2 pb-2 pt-1 bg-surface-container-lowest border-t border-outline-variant/30 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+        {/* Primer tab */}
+        {elementosNav.slice(0, 1).map((item) => {
           const activo = esActivo(item.href)
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center justify-center px-3 py-1.5 rounded-full transition-all ${
+              className={`flex-1 flex flex-col items-center justify-center px-3 py-1.5 rounded-full transition-all ${
+                activo ? 'bg-primary/10 text-primary' : 'text-on-surface-variant'
+              }`}
+            >
+              <span className={`material-symbols-outlined text-[22px] ${activo ? 'icon-fill' : ''}`}>
+                {item.icono}
+              </span>
+              <span className="text-[10px] font-semibold mt-0.5 tracking-wide">
+                {item.etiqueta}
+              </span>
+            </Link>
+          )
+        })}
+
+        {/* Botón Home central elevado */}
+        <div className="flex flex-col items-center -mt-5 px-4">
+          <Link
+            href="/"
+            className="w-14 h-14 rounded-full bg-primary text-on-primary flex items-center justify-center shadow-[0_4px_16px_rgba(0,159,227,0.40)] hover:shadow-[0_6px_20px_rgba(0,159,227,0.55)] active:scale-95 transition-all"
+            title="Inicio"
+          >
+            <span className="material-symbols-outlined text-[26px] icon-fill">home</span>
+          </Link>
+          <span className="text-[9px] font-semibold text-on-surface-variant mt-1 tracking-wide">Inicio</span>
+        </div>
+
+        {/* Tabs restantes */}
+        {elementosNav.slice(1).map((item) => {
+          const activo = esActivo(item.href)
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex-1 flex flex-col items-center justify-center px-3 py-1.5 rounded-full transition-all ${
                 activo ? 'bg-primary/10 text-primary' : 'text-on-surface-variant'
               }`}
             >
