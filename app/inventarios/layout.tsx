@@ -7,7 +7,7 @@ import { accionCerrarSesion } from '@/app/login/actions'
 
 // Elementos de navegación del panel de inventarios
 const elementosNav = [
-  { href: '/inventarios', icono: 'inventory_2', etiqueta: 'Inventario' },
+  { href: '/inventarios', icono: 'group', etiqueta: 'Cocineras' },
   { href: '/inventarios/escanear', icono: 'qr_code_scanner', etiqueta: 'Escanear' },
   { href: '/inventarios/asignaciones', icono: 'group', etiqueta: 'Cocineras' },
 ]
@@ -30,21 +30,13 @@ export default function LayoutInventarios({
     <div className="min-h-screen bg-background bg-grid-pattern">
       {/* Header superior para el panel de inventarios */}
       <header className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 md:px-6 h-16 bg-surface-container-lowest/90 backdrop-blur-md border-b border-outline-variant/30 shadow-sm">
-        {/* Logo + título */}
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center">
-            <span className="material-symbols-outlined text-white text-lg icon-fill">
-              inventory_2
-            </span>
-          </div>
-          <div>
-            <h1 className="font-bold text-on-surface text-base leading-none">
-              KitchenLogix
-            </h1>
-            <span className="text-outline text-[10px] font-semibold uppercase tracking-widest">
-              Panel Inventarios
-            </span>
-          </div>
+        {/* Logo */}
+        <div className="flex flex-col justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logotipo-proactivo.svg" alt="PROACTIVO" className="h-7 w-auto" />
+          <span className="text-outline text-[9px] font-semibold uppercase tracking-widest mt-0.5">
+            Panel Inventarios
+          </span>
         </div>
 
         {/* Acciones del header */}

@@ -46,20 +46,12 @@ export default function LayoutAdmin({
       >
         {/* Logo y perfil en el sidebar */}
         <div className="px-6 py-6 border-b border-outline-variant/40">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-white text-xl icon-fill">
-                soup_kitchen
-              </span>
-            </div>
-            <div>
-              <h1 className="font-bold text-on-surface text-lg tracking-tight leading-none">
-                KitchenLogix
-              </h1>
-              <span className="text-outline text-[10px] font-semibold uppercase tracking-widest">
-                Panel Admin
-              </span>
-            </div>
+          <div className="mb-5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logotipo-proactivo.svg" alt="PROACTIVO" className="h-8 w-auto" />
+            <span className="block text-outline text-[10px] font-semibold uppercase tracking-widest mt-1">
+              Panel Admin
+            </span>
           </div>
 
           {/* Info del usuario */}
@@ -140,7 +132,7 @@ export default function LayoutAdmin({
               Panel de Administración
             </h2>
             <p className="text-on-surface-variant text-xs mt-0.5">
-              KitchenLogix · Sistema de Gestión
+              PROACTIVO · Sistema de Gestión
             </p>
           </div>
         </div>

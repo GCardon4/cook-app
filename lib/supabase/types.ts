@@ -1,4 +1,4 @@
-// Tipos del schema de Supabase para KitchenLogix
+// Tipos del schema de Supabase para PROACTIVO
 
 export type Rol = {
   id: string

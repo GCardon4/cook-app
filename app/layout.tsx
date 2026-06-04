@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "KitchenLogix - Sistema de Gestión de Cocinas Industriales",
+  title: "PROACTIVO - Sistema de Gestión de Cocinas Industriales",
   description: "Gestión de inventario de utensilios para cocinas industriales",
   manifest: "/manifest.json",
 };

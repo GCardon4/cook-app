@@ -25,36 +25,25 @@ export default function PaginaLogin() {
           }}
         />
         <div
-          className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-10"
+          className="absolute top-0 right-0 w-96 h-96 rounded-full opacity-15"
           style={{
-            background: 'radial-gradient(circle, #6bd8cb 0%, transparent 70%)',
+            background: 'radial-gradient(circle, #009FE3 0%, transparent 70%)',
             transform: 'translate(30%, -30%)',
           }}
         />
         <div
-          className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-10"
+          className="absolute bottom-0 left-0 w-80 h-80 rounded-full opacity-15"
           style={{
-            background: 'radial-gradient(circle, #6bd8cb 0%, transparent 70%)',
+            background: 'radial-gradient(circle, #009FE3 0%, transparent 70%)',
             transform: 'translate(-30%, 30%)',
           }}
         />
 
         {/* Encabezado de marca */}
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-16">
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
-              <span className="material-symbols-outlined text-white text-2xl icon-fill">
-                soup_kitchen
-              </span>
-            </div>
-            <div>
-              <h1 className="text-white font-bold text-2xl tracking-tight leading-none">
-                KitchenLogix
-              </h1>
-              <p className="text-white/60 text-xs font-medium tracking-widest uppercase">
-                v1.0.0
-              </p>
-            </div>
+          <div className="mb-16">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logotipo-proactivo.svg" alt="PROACTIVO" className="h-10 w-auto brightness-0 invert" />
           </div>
 
           <h2 className="text-white font-bold text-4xl leading-tight mb-4">
@@ -91,7 +80,7 @@ export default function PaginaLogin() {
 
           <div className="pt-6 border-t border-white/20">
             <p className="text-white/50 text-xs">
-              © 2026 KitchenLogix · Todos los derechos reservados
+              © 2026 PROACTIVO · Todos los derechos reservados
             </p>
           </div>
         </div>
@@ -100,15 +89,9 @@ export default function PaginaLogin() {
       {/* Panel derecho: Formulario de login */}
       <div className="flex-1 flex flex-col justify-center items-center p-6 md:p-12 bg-surface-container-lowest">
         {/* Logo móvil */}
-        <div className="md:hidden flex items-center gap-2 mb-8">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-            <span className="material-symbols-outlined text-white text-xl icon-fill">
-              soup_kitchen
-            </span>
-          </div>
-          <span className="text-on-surface font-bold text-xl tracking-tight">
-            KitchenLogix
-          </span>
+        <div className="md:hidden flex items-center mb-8">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logotipo-proactivo.svg" alt="PROACTIVO" className="h-9 w-auto" />
         </div>
 
         <div className="w-full max-w-md">

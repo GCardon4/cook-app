@@ -30,7 +30,7 @@ function construirUrlWhatsAppInventario(
     `Tus utensilios asignados:\n\n` +
     `${lista}\n\n` +
     `Total: ${asignaciones.length} tipo(s) · ${totalUnidades} unidad(es)\n\n` +
-    `_KitchenLogix_ 🍽️`
+    `_PROACTIVO_ 🍽️`
 
   return `https://wa.me/57${cocinera.phone}?text=${encodeURIComponent(mensaje)}`
 }

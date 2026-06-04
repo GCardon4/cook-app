@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 // Verificar sesión y proteger rutas privadas
-export async function middleware(solicitud: NextRequest) {
+export async function proxy(solicitud: NextRequest) {
   let respuestaSupabase = NextResponse.next({ request: solicitud })
 
   const supabase = createServerClient(

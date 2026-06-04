@@ -58,7 +58,7 @@ function construirUrlWhatsApp(cocinera: FilaCocinera): string {
     `${listaUtensilios}\n\n` +
     `Total: ${cocinera.totalUtensilios} utensilio(s)\n` +
     `Escuela(s): ${escuelas}\n\n` +
-    `_KitchenLogix_ 🍽️`
+    `_PROACTIVO_ 🍽️`
 
   return `https://wa.me/57${cocinera.phone}?text=${encodeURIComponent(mensaje)}`
 }
