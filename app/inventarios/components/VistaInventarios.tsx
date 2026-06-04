@@ -1,7 +1,12 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useTransition } from 'react'
-import { agregarPorEscaneo, entregarPorEscaneo } from '../actions'
+import {
+  agregarPorEscaneo,
+  entregarPorEscaneo,
+  obtenerInventarioCocinera,
+} from '../actions'
+import type { ItemInventarioCocinera } from '../actions'
 
 type Vista = 'cocineras' | 'accion' | 'agregar' | 'entrega'
 
@@ -9,6 +14,7 @@ export type CocineraResumen = {
   id: number
   name: string
   doc: number | null
+  phone: number | null
   totalTipos: number
   totalUnidades: number
 }
@@ -20,6 +26,36 @@ type ItemHistorial = { nombre: string; modo: 'agregar' | 'entrega' }
 function formatearDoc(doc: number | null) {
   if (!doc) return null
   return doc.toLocaleString('es-CO')
+}
+
+// Construir URL de WhatsApp con el resumen de la sesión AGREGAR
+function construirUrlWhatsApp(
+  cocinera: CocineraResumen,
+  historial: ItemHistorial[]
+): string | null {
+  if (!cocinera.phone || historial.length === 0) return null
+
+  const cantidades = new Map<string, number>()
+  historial.forEach((item) => {
+    if (item.modo === 'agregar') {
+      cantidades.set(item.nombre, (cantidades.get(item.nombre) ?? 0) + 1)
+    }
+  })
+  if (cantidades.size === 0) return null
+
+  const totalUnidades = Array.from(cantidades.values()).reduce((a, b) => a + b, 0)
+  const lista = Array.from(cantidades.entries())
+    .map(([nombre, cantidad]) => `• ${nombre} × ${cantidad}`)
+    .join('\n')
+
+  const mensaje =
+    `Hola ${cocinera.name}! 👋\n\n` +
+    `Utensilios asignados esta sesión:\n\n` +
+    `${lista}\n\n` +
+    `Total: ${cantidades.size} tipo(s) · ${totalUnidades} unidad(es)\n\n` +
+    `_PROACTIVO_ 🍽️`
+
+  return `https://wa.me/57${cocinera.phone}?text=${encodeURIComponent(mensaje)}`
 }
 
 export default function VistaInventarios({ cocineras }: { cocineras: CocineraResumen[] }) {
@@ -37,6 +73,10 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   const [historial, setHistorial] = useState<ItemHistorial[]>([])
   const [isPending, startTransition] = useTransition()
 
+  // Inventario actual de la cocinera (visible en AGREGAR y ENTREGA)
+  const [inventarioActual, setInventarioActual] = useState<ItemInventarioCocinera[]>([])
+  const [cargandoInventario, setCargandoInventario] = useState(false)
+
   // Cámara
   const [camaraAbierta, setCamaraAbierta] = useState(false)
   const [camaraActiva, setCamaraActiva] = useState(false)
@@ -47,8 +87,6 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null)
   const ultimoSKURef = useRef('')
-
-  // Ref con la función de procesar siempre actualizada (captura vista y cocineraActiva frescos)
   const procesarRef = useRef<(codigo: string) => void>(() => {})
 
   // Reconocimiento de voz para buscar cocineras
@@ -68,7 +106,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onerror = (e: any) => {
       setEscuchando(false)
-      if (e.error === 'not-allowed') setErrorVoz('Permiso de micrófono denegado. Actívalo en configuración.')
+      if (e.error === 'not-allowed') setErrorVoz('Permiso de micrófono denegado.')
       else if (e.error === 'no-speech') setErrorVoz('No se detectó voz. Intenta de nuevo.')
       setTimeout(() => setErrorVoz(null), 4000)
     }
@@ -83,37 +121,64 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   }, [])
 
   // Procesar código escaneado según el modo activo
-  const procesarEscaneo = useCallback((codigo: string, modo: 'agregar' | 'entrega', cocinera: CocineraResumen) => {
-    const skuNum = parseInt(codigo.replace(/\D/g, ''))
-    if (!skuNum) { mostrarToast('error', 'Código no válido.'); return }
+  const procesarEscaneo = useCallback(
+    (codigo: string, modo: 'agregar' | 'entrega', cocinera: CocineraResumen) => {
+      const skuNum = parseInt(codigo.replace(/\D/g, ''))
+      if (!skuNum) { mostrarToast('error', 'Código no válido.'); return }
 
-    startTransition(async () => {
-      const resultado = modo === 'agregar'
-        ? await agregarPorEscaneo(cocinera.id, skuNum)
-        : await entregarPorEscaneo(cocinera.id, skuNum)
+      startTransition(async () => {
+        const resultado =
+          modo === 'agregar'
+            ? await agregarPorEscaneo(cocinera.id, skuNum)
+            : await entregarPorEscaneo(cocinera.id, skuNum)
 
-      if (resultado?.exito) {
-        mostrarToast('ok', resultado.exito)
-        if (resultado.utensilio) {
-          setHistorial(prev => [
-            { nombre: resultado.utensilio!, modo },
-            ...prev.slice(0, 9),
-          ])
+        if (resultado?.exito) {
+          mostrarToast('ok', resultado.exito)
+          if (resultado.utensilio) {
+            setHistorial((prev) => [{ nombre: resultado.utensilio!, modo }, ...prev.slice(0, 19)])
+
+            // Actualizar lista visual según el modo
+            if (modo === 'entrega') {
+              setInventarioActual((prev) =>
+                prev.flatMap((item) =>
+                  item.sku === skuNum
+                    ? item.cantidad <= 1 ? [] : [{ ...item, cantidad: item.cantidad - 1 }]
+                    : [item]
+                )
+              )
+            } else {
+              // AGREGAR: incrementar si existe, añadir si es nuevo
+              setInventarioActual((prev) => {
+                const existe = prev.some((item) => item.sku === skuNum)
+                if (existe) {
+                  return prev.map((item) =>
+                    item.sku === skuNum ? { ...item, cantidad: item.cantidad + 1 } : item
+                  )
+                }
+                return [
+                  ...prev,
+                  { inventarioId: -skuNum, nombre: resultado.utensilio!, sku: skuNum, cantidad: 1 },
+                ]
+              })
+            }
+          }
+        } else if (resultado?.error) {
+          mostrarToast('error', resultado.error)
         }
-      } else if (resultado?.error) {
-        mostrarToast('error', resultado.error)
-      }
-    })
-  }, [mostrarToast])
+      })
+    },
+    [mostrarToast]
+  )
 
-  // Actualizar ref en cada render para que el listener siempre use valores frescos
+  // Actualizar ref en cada render para capturar vista y cocinera frescos
   useEffect(() => {
     if (!cocineraActiva) return
     const modoActual = vista as 'agregar' | 'entrega'
-    procesarRef.current = (codigo: string) => procesarEscaneo(codigo, modoActual, cocineraActiva)
+    procesarRef.current = (codigo: string) =>
+      procesarEscaneo(codigo, modoActual, cocineraActiva)
   })
 
-  // Escáner hardware: detecta ráfaga de teclas < 120ms del lector USB/Bluetooth
+  // Escáner hardware: detecta ráfaga de teclas < 120ms (lector USB/Bluetooth)
   useEffect(() => {
     if (vista !== 'agregar' && vista !== 'entrega') return
     const buf = { chars: '', lastMs: 0 }
@@ -134,7 +199,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [vista])
 
-  // Iniciar cámara con ZXing
+  // Cámara ZXing
   const iniciarCamara = useCallback(async () => {
     if (!videoRef.current) return
     setErrorCamara(null)
@@ -153,20 +218,26 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
       hints.set(DecodeHintType.TRY_HARDER, true)
       const reader = new BrowserMultiFormatReader(hints)
       const dispositivos = await BrowserMultiFormatReader.listVideoInputDevices()
-      setCamaras(dispositivos.map(d => ({
-        deviceId: d.deviceId,
-        label: d.label || `Cámara ${d.deviceId.slice(0, 6)}`,
-      })))
-      const trasera = dispositivos.find(d => /back|rear|trasera|environment/i.test(d.label))
+      setCamaras(
+        dispositivos.map((d) => ({
+          deviceId: d.deviceId,
+          label: d.label || `Cámara ${d.deviceId.slice(0, 6)}`,
+        }))
+      )
+      const trasera = dispositivos.find((d) => /back|rear|trasera|environment/i.test(d.label))
       const idCamara = camaraSeleccionada ?? trasera?.deviceId ?? dispositivos[0]?.deviceId
-      const controls = await reader.decodeFromVideoDevice(idCamara, videoRef.current, (result) => {
-        if (!result) return
-        const texto = result.getText()
-        if (texto === ultimoSKURef.current) return
-        ultimoSKURef.current = texto
-        procesarRef.current(texto)
-        setTimeout(() => { ultimoSKURef.current = '' }, 4000)
-      })
+      const controls = await reader.decodeFromVideoDevice(
+        idCamara,
+        videoRef.current,
+        (result) => {
+          if (!result) return
+          const texto = result.getText()
+          if (texto === ultimoSKURef.current) return
+          ultimoSKURef.current = texto
+          procesarRef.current(texto)
+          setTimeout(() => { ultimoSKURef.current = '' }, 4000)
+        }
+      )
       controlsRef.current = controls
       setCamaraActiva(true)
     } catch {
@@ -196,16 +267,24 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     setToast(null)
   }
 
-  const irAModo = (modo: 'agregar' | 'entrega') => {
+  const irAModo = async (modo: 'agregar' | 'entrega') => {
     setHistorial([])
     setToast(null)
+    setInventarioActual([])
     setVista(modo)
+    if (cocineraActiva) {
+      setCargandoInventario(true)
+      const items = await obtenerInventarioCocinera(cocineraActiva.id)
+      setInventarioActual(items)
+      setCargandoInventario(false)
+    }
   }
 
   const volverAAccion = () => {
     setCamaraAbierta(false)
     setToast(null)
     setHistorial([])
+    setInventarioActual([])
     setVista('accion')
   }
 
@@ -214,13 +293,15 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     setCocineraActiva(null)
     setToast(null)
     setHistorial([])
+    setInventarioActual([])
     setVista('cocineras')
   }
 
-  const cocinerasFiltradas = cocineras.filter(c =>
-    busqueda === '' ||
-    c.name.toLowerCase().includes(busqueda.toLowerCase()) ||
-    c.doc?.toString().includes(busqueda)
+  const cocinerasFiltradas = cocineras.filter(
+    (c) =>
+      busqueda === '' ||
+      c.name.toLowerCase().includes(busqueda.toLowerCase()) ||
+      c.doc?.toString().includes(busqueda)
   )
 
   const esAgregar = vista === 'agregar'
@@ -236,11 +317,11 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
           <p className="text-on-surface-variant text-xs font-medium mt-0.5">Total</p>
         </div>
         <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-primary/20 text-center">
-          <p className="text-primary font-bold text-2xl">{cocineras.filter(c => c.totalTipos > 0).length}</p>
+          <p className="text-primary font-bold text-2xl">{cocineras.filter((c) => c.totalTipos > 0).length}</p>
           <p className="text-on-surface-variant text-xs font-medium mt-0.5">Con utensilios</p>
         </div>
         <div className="bg-surface-container-lowest rounded-2xl p-4 shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-secondary/20 text-center">
-          <p className="text-secondary font-bold text-2xl">{cocineras.filter(c => c.totalTipos === 0).length}</p>
+          <p className="text-secondary font-bold text-2xl">{cocineras.filter((c) => c.totalTipos === 0).length}</p>
           <p className="text-on-surface-variant text-xs font-medium mt-0.5">Sin asignar</p>
         </div>
       </div>
@@ -262,10 +343,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
           }`}
         />
         {busqueda && !escuchando && (
-          <button
-            onClick={() => setBusqueda('')}
-            className="absolute right-11 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors"
-          >
+          <button onClick={() => setBusqueda('')} className="absolute right-11 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface transition-colors">
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         )}
@@ -285,7 +363,6 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
         </button>
       </div>
 
-      {/* Animación escucha activa */}
       {escuchando && (
         <div className="flex items-center justify-center gap-2 mb-4 py-2 px-4 rounded-xl bg-primary/8 border border-primary/20">
           <div className="flex gap-0.5 items-end h-4">
@@ -311,7 +388,6 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
         <span className="text-primary font-medium">Toca una cocinera para gestionar</span>
       </p>
 
-      {/* Grid de cocineras */}
       {cocinerasFiltradas.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mb-4">
@@ -344,7 +420,6 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
                   {cocinera.totalTipos}
                 </span>
               </div>
-
               <div className="grid grid-cols-2 gap-2 mt-4">
                 <div className="bg-surface-container rounded-xl px-3 py-2 text-center">
                   <p className="text-on-surface font-bold text-lg tabular-nums">{cocinera.totalTipos}</p>
@@ -357,7 +432,6 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
                   <p className="text-outline text-[10px] uppercase tracking-wide">Unidades</p>
                 </div>
               </div>
-
               <div className="mt-3 flex items-center gap-1.5 text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                 <span className="material-symbols-outlined text-[14px] icon-fill">qr_code_scanner</span>
                 <span className="text-xs font-semibold">Agregar · Entrega</span>
@@ -372,24 +446,18 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   // ─── VISTA: Botones AGREGAR / ENTREGA ─────────────────────────────────────────
   if (vista === 'accion' && cocineraActiva) return (
     <div className="max-w-sm mx-auto">
-      <button
-        onClick={volverACocineras}
-        className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface mb-6 transition-colors"
-      >
+      <button onClick={volverACocineras} className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface mb-6 transition-colors">
         <span className="material-symbols-outlined text-[20px]">arrow_back</span>
         <span className="text-sm font-medium">Cocineras</span>
       </button>
 
-      {/* Perfil de la cocinera */}
       <div className="flex items-center gap-4 mb-8 p-4 bg-surface-container-lowest rounded-2xl border border-outline-variant/20 shadow-[0_4px_20px_rgba(0,0,0,0.04)]">
         <div className="w-16 h-16 rounded-full bg-primary/15 text-primary flex items-center justify-center font-black text-2xl shrink-0">
           {cocineraActiva.name.charAt(0).toUpperCase()}
         </div>
         <div>
           <p className="text-on-surface font-bold text-xl leading-tight">{cocineraActiva.name}</p>
-          {cocineraActiva.doc && (
-            <p className="text-outline text-sm mt-0.5">CC {formatearDoc(cocineraActiva.doc)}</p>
-          )}
+          {cocineraActiva.doc && <p className="text-outline text-sm mt-0.5">CC {formatearDoc(cocineraActiva.doc)}</p>}
           <p className="text-on-surface-variant text-xs mt-1">
             {cocineraActiva.totalTipos} tipo{cocineraActiva.totalTipos !== 1 ? 's' : ''} ·{' '}
             {cocineraActiva.totalUnidades} unidad{cocineraActiva.totalUnidades !== 1 ? 'es' : ''}
@@ -397,11 +465,10 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
         </div>
       </div>
 
-      {/* Botones grandes */}
       <div className="flex flex-col gap-4">
         <button
           onClick={() => irAModo('agregar')}
-          className="flex items-center gap-5 p-6 rounded-2xl bg-primary text-on-primary shadow-[0_8px_30px_rgba(0,104,95,0.30)] hover:shadow-[0_12px_40px_rgba(0,104,95,0.40)] hover:-translate-y-0.5 active:scale-[0.98] transition-all group"
+          className="flex items-center gap-5 p-6 rounded-2xl bg-primary text-on-primary shadow-[0_8px_30px_rgba(0,159,227,0.30)] hover:shadow-[0_12px_40px_rgba(0,159,227,0.40)] hover:-translate-y-0.5 active:scale-[0.98] transition-all group"
         >
           <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-[36px] icon-fill">add_circle</span>
@@ -410,14 +477,12 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
             <p className="font-black text-2xl tracking-wide">AGREGAR</p>
             <p className="text-on-primary/80 text-sm mt-0.5">Escanea para asignar utensilios</p>
           </div>
-          <span className="material-symbols-outlined text-[24px] text-on-primary/60 group-hover:translate-x-1 transition-transform">
-            chevron_right
-          </span>
+          <span className="material-symbols-outlined text-[24px] text-on-primary/60 group-hover:translate-x-1 transition-transform">chevron_right</span>
         </button>
 
         <button
           onClick={() => irAModo('entrega')}
-          className="flex items-center gap-5 p-6 rounded-2xl bg-secondary text-on-secondary shadow-[0_8px_30px_rgba(0,0,0,0.15)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.20)] hover:-translate-y-0.5 active:scale-[0.98] transition-all group"
+          className="flex items-center gap-5 p-6 rounded-2xl bg-secondary text-on-secondary shadow-[0_8px_30px_rgba(239,125,0,0.25)] hover:shadow-[0_12px_40px_rgba(239,125,0,0.35)] hover:-translate-y-0.5 active:scale-[0.98] transition-all group"
         >
           <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center shrink-0">
             <span className="material-symbols-outlined text-[36px] icon-fill">assignment_return</span>
@@ -426,209 +491,245 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
             <p className="font-black text-2xl tracking-wide">ENTREGA</p>
             <p className="text-on-secondary/80 text-sm mt-0.5">Escanea para registrar devoluciones</p>
           </div>
-          <span className="material-symbols-outlined text-[24px] text-on-secondary/60 group-hover:translate-x-1 transition-transform">
-            chevron_right
-          </span>
+          <span className="material-symbols-outlined text-[24px] text-on-secondary/60 group-hover:translate-x-1 transition-transform">chevron_right</span>
         </button>
       </div>
     </div>
   )
 
   // ─── VISTA: Modo escáner AGREGAR o ENTREGA ────────────────────────────────────
-  if ((esAgregar || esEntrega) && cocineraActiva) return (
-    <div className="max-w-md mx-auto">
-      <button
-        onClick={volverAAccion}
-        className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface mb-5 transition-colors"
-      >
-        <span className="material-symbols-outlined text-[20px]">arrow_back</span>
-        <span className="text-sm font-medium">Volver</span>
-      </button>
+  if ((esAgregar || esEntrega) && cocineraActiva) {
+    const urlWhatsApp = esAgregar ? construirUrlWhatsApp(cocineraActiva, historial) : null
 
-      {/* Banner del modo activo */}
-      <div className={`flex items-center justify-between px-5 py-4 rounded-2xl mb-5 ${
-        esAgregar ? 'bg-primary text-on-primary' : 'bg-secondary text-on-secondary'
-      }`}>
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-[28px] icon-fill">
-            {esAgregar ? 'add_circle' : 'assignment_return'}
-          </span>
-          <div>
-            <p className="font-black text-lg leading-tight">
-              {esAgregar ? 'AGREGAR' : 'ENTREGA'}
-            </p>
-            <p className={`text-sm ${esAgregar ? 'text-on-primary/80' : 'text-on-secondary/80'}`}>
-              {cocineraActiva.name}
-            </p>
-          </div>
-        </div>
-
-        {/* Botón cámara secundario */}
-        <button
-          onClick={() => setCamaraAbierta(v => !v)}
-          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-            camaraAbierta ? 'bg-white/30' : 'bg-white/15 hover:bg-white/25'
-          }`}
-          title={camaraAbierta ? 'Cerrar cámara' : 'Abrir cámara'}
-        >
-          <span className="material-symbols-outlined text-[22px] icon-fill">
-            {camaraAbierta ? 'no_photography' : 'photo_camera'}
-          </span>
+    return (
+      <div className="max-w-md mx-auto">
+        <button onClick={volverAAccion} className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface mb-5 transition-colors">
+          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          <span className="text-sm font-medium">Volver</span>
         </button>
-      </div>
 
-      {/* Toast de feedback del escáner */}
-      {toast && (
-        <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-4 ${
-          toast.tipo === 'ok'
-            ? esAgregar
-              ? 'bg-primary/10 border border-primary/20'
-              : 'bg-secondary/10 border border-secondary/20'
-            : 'bg-error-container border border-error/20'
+        {/* Banner del modo activo */}
+        <div className={`flex items-center justify-between px-5 py-4 rounded-2xl mb-5 ${
+          esAgregar ? 'bg-primary text-on-primary' : 'bg-secondary text-on-secondary'
         }`}>
-          <span className={`material-symbols-outlined text-[20px] icon-fill ${
-            toast.tipo === 'ok'
-              ? esAgregar ? 'text-primary' : 'text-secondary'
-              : 'text-on-error-container'
-          }`}>
-            {toast.tipo === 'ok' ? 'barcode_reader' : 'error'}
-          </span>
-          <p className={`text-sm font-semibold flex-1 ${
-            toast.tipo === 'ok'
-              ? esAgregar ? 'text-primary' : 'text-secondary'
-              : 'text-on-error-container'
-          }`}>
-            {toast.msg}
-          </p>
-          {isPending && (
-            <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin shrink-0" />
-          )}
-        </div>
-      )}
-
-      {/* Panel de cámara (expandible) */}
-      {camaraAbierta && (
-        <div className="mb-5 bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-outline-variant/20">
-          <div className="relative bg-black aspect-[4/3] overflow-hidden">
-            <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
-
-            {camaraActiva && !errorCamara && (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="relative w-48 h-48">
-                  <div className="absolute top-0 left-0 w-8 h-8 border-white" style={{ borderWidth: '3px 0 0 3px', borderRadius: '4px 0 0 0' }} />
-                  <div className="absolute top-0 right-0 w-8 h-8 border-white" style={{ borderWidth: '3px 3px 0 0', borderRadius: '0 4px 0 0' }} />
-                  <div className="absolute bottom-0 left-0 w-8 h-8 border-white" style={{ borderWidth: '0 0 3px 3px', borderRadius: '0 0 0 4px' }} />
-                  <div className="absolute bottom-0 right-0 w-8 h-8 border-white" style={{ borderWidth: '0 3px 3px 0', borderRadius: '0 0 4px 0' }} />
-                  <div className="absolute inset-x-2 h-0.5 bg-white/80 shadow-[0_0_8px_rgba(255,255,255,0.9)] animate-scan" />
-                </div>
-                <p className="absolute bottom-4 text-white/80 text-xs font-medium bg-black/40 px-3 py-1 rounded-full">
-                  Apunta al código del utensilio
-                </p>
-              </div>
-            )}
-
-            {!camaraActiva && !errorCamara && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60">
-                <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <p className="text-white text-sm">Activando cámara...</p>
-              </div>
-            )}
-
-            {errorCamara && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 px-6 text-center">
-                <span className="material-symbols-outlined text-secondary text-4xl icon-fill">no_photography</span>
-                <p className="text-white text-sm">{errorCamara}</p>
-                <button
-                  onClick={iniciarCamara}
-                  className="px-4 py-2 rounded-xl bg-primary text-on-primary text-sm font-semibold"
-                >
-                  Reintentar
-                </button>
-              </div>
-            )}
-          </div>
-
-          {camaras.length > 1 && (
-            <div className="px-4 py-3 border-t border-outline-variant/20 flex items-center gap-3">
-              <span className="material-symbols-outlined text-outline text-[18px]">flip_camera_android</span>
-              <select
-                value={camaraSeleccionada ?? ''}
-                onChange={(e) => setCamaraSeleccionada(e.target.value)}
-                className="flex-1 text-sm text-on-surface bg-transparent focus:outline-none"
-              >
-                {camaras.map(c => (
-                  <option key={c.deviceId} value={c.deviceId}>{c.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Instrucciones del escáner */}
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-surface-container border border-outline-variant/20 mb-5">
-        <span className="material-symbols-outlined text-outline text-[20px] icon-fill shrink-0 mt-0.5">
-          barcode_reader
-        </span>
-        <div>
-          <p className="text-on-surface text-sm font-semibold">Escáner listo</p>
-          <p className="text-on-surface-variant text-xs mt-0.5">
-            {esAgregar
-              ? 'Cada escaneo agrega 1 unidad del utensilio a esta cocinera.'
-              : 'Cada escaneo descuenta 1 unidad entregada por esta cocinera.'}
-          </p>
-        </div>
-      </div>
-
-      {/* Historial de la sesión actual */}
-      {historial.length > 0 && (
-        <div>
-          <p className="text-on-surface-variant text-xs font-semibold uppercase tracking-wider mb-2">
-            Esta sesión
-          </p>
-          <ul className="space-y-2">
-            {historial.map((item, i) => (
-              <li
-                key={i}
-                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${
-                  item.modo === 'agregar'
-                    ? 'bg-primary/5 border-primary/15'
-                    : 'bg-secondary/5 border-secondary/15'
-                }`}
-              >
-                <span className={`material-symbols-outlined text-[18px] icon-fill ${
-                  item.modo === 'agregar' ? 'text-primary' : 'text-secondary'
-                }`}>
-                  {item.modo === 'agregar' ? 'add_circle' : 'assignment_return'}
-                </span>
-                <p className={`text-sm font-semibold ${
-                  item.modo === 'agregar' ? 'text-primary' : 'text-secondary'
-                }`}>
-                  {item.modo === 'agregar' ? '+1' : '-1'} {item.nombre}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Estado vacío inicial */}
-      {historial.length === 0 && !toast && (
-        <div className="text-center py-10">
-          <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-3">
-            <span className="material-symbols-outlined text-3xl text-outline">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-[28px] icon-fill">
               {esAgregar ? 'add_circle' : 'assignment_return'}
             </span>
+            <div>
+              <p className="font-black text-lg leading-tight">{esAgregar ? 'AGREGAR' : 'ENTREGA'}</p>
+              <p className={`text-sm ${esAgregar ? 'text-on-primary/80' : 'text-on-secondary/80'}`}>
+                {cocineraActiva.name}
+              </p>
+            </div>
           </div>
-          <p className="text-on-surface-variant text-sm">
-            {esAgregar
-              ? 'Escanea el código de barras de un utensilio'
-              : 'Escanea el código de barras del utensilio a devolver'}
-          </p>
+          <button
+            onClick={() => setCamaraAbierta((v) => !v)}
+            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+              camaraAbierta ? 'bg-white/30' : 'bg-white/15 hover:bg-white/25'
+            }`}
+            title={camaraAbierta ? 'Cerrar cámara' : 'Abrir cámara'}
+          >
+            <span className="material-symbols-outlined text-[22px] icon-fill">
+              {camaraAbierta ? 'no_photography' : 'photo_camera'}
+            </span>
+          </button>
         </div>
-      )}
-    </div>
-  )
+
+        {/* Toast de feedback */}
+        {toast && (
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl mb-4 ${
+            toast.tipo === 'ok'
+              ? esAgregar
+                ? 'bg-primary/10 border border-primary/20'
+                : 'bg-secondary/10 border border-secondary/20'
+              : 'bg-error-container border border-error/20'
+          }`}>
+            <span className={`material-symbols-outlined text-[20px] icon-fill ${
+              toast.tipo === 'ok' ? (esAgregar ? 'text-primary' : 'text-secondary') : 'text-on-error-container'
+            }`}>
+              {toast.tipo === 'ok' ? 'barcode_reader' : 'error'}
+            </span>
+            <p className={`text-sm font-semibold flex-1 ${
+              toast.tipo === 'ok' ? (esAgregar ? 'text-primary' : 'text-secondary') : 'text-on-error-container'
+            }`}>
+              {toast.msg}
+            </p>
+            {isPending && (
+              <div className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin shrink-0" />
+            )}
+          </div>
+        )}
+
+        {/* Panel de cámara */}
+        {camaraAbierta && (
+          <div className="mb-5 bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-outline-variant/20">
+            <div className="relative bg-black aspect-[4/3] overflow-hidden">
+              <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+              {camaraActiva && !errorCamara && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="relative w-48 h-48">
+                    <div className="absolute top-0 left-0 w-8 h-8 border-white" style={{ borderWidth: '3px 0 0 3px', borderRadius: '4px 0 0 0' }} />
+                    <div className="absolute top-0 right-0 w-8 h-8 border-white" style={{ borderWidth: '3px 3px 0 0', borderRadius: '0 4px 0 0' }} />
+                    <div className="absolute bottom-0 left-0 w-8 h-8 border-white" style={{ borderWidth: '0 0 3px 3px', borderRadius: '0 0 0 4px' }} />
+                    <div className="absolute bottom-0 right-0 w-8 h-8 border-white" style={{ borderWidth: '0 3px 3px 0', borderRadius: '0 0 4px 0' }} />
+                    <div className="absolute inset-x-2 h-0.5 bg-white/80 animate-scan" />
+                  </div>
+                  <p className="absolute bottom-4 text-white/80 text-xs font-medium bg-black/40 px-3 py-1 rounded-full">
+                    Apunta al código del utensilio
+                  </p>
+                </div>
+              )}
+              {!camaraActiva && !errorCamara && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/60">
+                  <div className="w-8 h-8 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <p className="text-white text-sm">Activando cámara...</p>
+                </div>
+              )}
+              {errorCamara && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 px-6 text-center">
+                  <span className="material-symbols-outlined text-secondary text-4xl icon-fill">no_photography</span>
+                  <p className="text-white text-sm">{errorCamara}</p>
+                  <button onClick={iniciarCamara} className="px-4 py-2 rounded-xl bg-primary text-on-primary text-sm font-semibold">Reintentar</button>
+                </div>
+              )}
+            </div>
+            {camaras.length > 1 && (
+              <div className="px-4 py-3 border-t border-outline-variant/20 flex items-center gap-3">
+                <span className="material-symbols-outlined text-outline text-[18px]">flip_camera_android</span>
+                <select
+                  value={camaraSeleccionada ?? ''}
+                  onChange={(e) => setCamaraSeleccionada(e.target.value)}
+                  className="flex-1 text-sm text-on-surface bg-transparent focus:outline-none"
+                >
+                  {camaras.map((c) => (
+                    <option key={c.deviceId} value={c.deviceId}>{c.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Instrucciones */}
+        <div className="flex items-start gap-3 p-4 rounded-xl bg-surface-container border border-outline-variant/20 mb-5">
+          <span className="material-symbols-outlined text-outline text-[20px] icon-fill shrink-0 mt-0.5">barcode_reader</span>
+          <div>
+            <p className="text-on-surface text-sm font-semibold">Escáner listo</p>
+            <p className="text-on-surface-variant text-xs mt-0.5">
+              {esAgregar
+                ? 'Cada escaneo agrega +1 unidad a esta cocinera. Escanear el mismo producto lo acumula.'
+                : 'Cada escaneo descuenta 1 unidad entregada por esta cocinera.'}
+            </p>
+          </div>
+        </div>
+
+        {/* ── Lista del inventario actual (AGREGAR y ENTREGA) ──────────── */}
+        <div className="mb-5">
+          <p className="text-on-surface-variant text-xs font-semibold uppercase tracking-wider mb-2">
+            Utensilios asignados
+          </p>
+
+          {cargandoInventario ? (
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-surface-container border border-outline-variant/20">
+              <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin shrink-0" />
+              <p className="text-on-surface-variant text-sm">Cargando inventario...</p>
+            </div>
+          ) : inventarioActual.length === 0 ? (
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-surface-container border border-outline-variant/20">
+              <span className="material-symbols-outlined text-outline text-[20px]">inventory_2</span>
+              <p className="text-on-surface-variant text-sm">Sin utensilios asignados aún.</p>
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {inventarioActual.map((item: ItemInventarioCocinera) => (
+                <li
+                  key={item.inventarioId}
+                  className="flex items-center gap-3 px-4 py-3 rounded-xl bg-surface-container-lowest border border-outline-variant/20"
+                >
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                    esAgregar ? 'bg-primary/10 text-primary' : 'bg-secondary/10 text-secondary'
+                  }`}>
+                    <span className="material-symbols-outlined text-[18px] icon-fill">flatware</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-on-surface text-sm font-semibold truncate">{item.nombre}</p>
+                    {item.sku && <p className="text-outline text-[11px] font-mono">SKU {item.sku}</p>}
+                  </div>
+                  <span className={`shrink-0 font-bold text-base tabular-nums px-2.5 py-1 rounded-lg ${
+                    esAgregar ? 'text-primary bg-primary/10' : 'text-secondary bg-secondary/10'
+                  }`}>
+                    ×{item.cantidad}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* ── AGREGAR/ENTREGA: historial de sesión ─────────────────────── */}
+        {historial.length > 0 && (
+          <div className="mb-5">
+            <p className="text-on-surface-variant text-xs font-semibold uppercase tracking-wider mb-2">
+              Esta sesión
+            </p>
+            <ul className="space-y-2">
+              {historial.map((item, i) => (
+                <li
+                  key={i}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-xl border ${
+                    item.modo === 'agregar'
+                      ? 'bg-primary/5 border-primary/15'
+                      : 'bg-secondary/5 border-secondary/15'
+                  }`}
+                >
+                  <span className={`material-symbols-outlined text-[18px] icon-fill ${
+                    item.modo === 'agregar' ? 'text-primary' : 'text-secondary'
+                  }`}>
+                    {item.modo === 'agregar' ? 'add_circle' : 'assignment_return'}
+                  </span>
+                  <p className={`text-sm font-semibold ${
+                    item.modo === 'agregar' ? 'text-primary' : 'text-secondary'
+                  }`}>
+                    {item.modo === 'agregar' ? '+1' : '-1'} {item.nombre}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* ── AGREGAR: botón WhatsApp (cuando hay items y hay teléfono) ── */}
+        {esAgregar && urlWhatsApp && (
+          <a
+            href={urlWhatsApp}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 w-full px-5 py-4 rounded-2xl bg-[#25D366] text-white font-semibold shadow-[0_4px_20px_rgba(37,211,102,0.30)] hover:shadow-[0_8px_30px_rgba(37,211,102,0.40)] hover:-translate-y-0.5 active:scale-[0.98] transition-all"
+          >
+            <svg className="w-6 h-6 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+            </svg>
+            <div className="flex-1">
+              <p className="font-bold text-base leading-tight">Enviar por WhatsApp</p>
+              <p className="text-white/80 text-xs mt-0.5">Confirmación de utensilios a {cocineraActiva.name}</p>
+            </div>
+            <span className="material-symbols-outlined text-[20px] text-white/70">open_in_new</span>
+          </a>
+        )}
+
+        {/* Estado vacío */}
+        {historial.length === 0 && !toast && esAgregar && (
+          <div className="text-center py-10">
+            <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center mx-auto mb-3">
+              <span className="material-symbols-outlined text-3xl text-outline">add_circle</span>
+            </div>
+            <p className="text-on-surface-variant text-sm">Escanea el código de barras de un utensilio</p>
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return null
 }

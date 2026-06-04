@@ -47,6 +47,36 @@ export async function asignarDesdeInventario(
   return { exito: `${cantidad} unidad${cantidad !== 1 ? 'es' : ''} asignada${cantidad !== 1 ? 's' : ''} correctamente.` }
 }
 
+export type ItemInventarioCocinera = {
+  inventarioId: number
+  nombre: string
+  sku: number | null
+  cantidad: number
+}
+
+// Obtener el inventario actual asignado a una cocinera
+export async function obtenerInventarioCocinera(
+  cocineraId: number
+): Promise<ItemInventarioCocinera[]> {
+  const supabase = await crearClienteServidor()
+
+  const { data } = await supabase
+    .from('inventory')
+    .select('id, stock, utensils:utensils_id(id, name, sku)')
+    .eq('cook_id', cocineraId)
+    .order('id')
+
+  return (data ?? []).map((row) => {
+    const u = Array.isArray(row.utensils) ? row.utensils[0] : row.utensils
+    return {
+      inventarioId: row.id as number,
+      nombre: (u as { name: string } | null)?.name ?? 'Desconocido',
+      sku: (u as { sku: number | null } | null)?.sku ?? null,
+      cantidad: (row.stock as number | null) ?? 1,
+    }
+  })
+}
+
 export type ResultadoEscaneo = {
   exito?: string
   error?: string

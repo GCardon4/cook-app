@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Verificar sesión y proteger rutas privadas
+// Verificar sesión, rol y proteger rutas privadas
 export async function proxy(solicitud: NextRequest) {
   let respuestaSupabase = NextResponse.next({ request: solicitud })
 
@@ -33,21 +33,39 @@ export async function proxy(solicitud: NextRequest) {
 
   const ruta = solicitud.nextUrl.pathname
   const esRutaLogin = ruta.startsWith('/login')
-  const esRutaProtegida =
-    ruta.startsWith('/admin') || ruta.startsWith('/inventarios')
+  const esRutaAdmin = ruta.startsWith('/admin')
+  const esRutaProtegida = esRutaAdmin || ruta.startsWith('/inventarios')
 
-  // Redirigir al login si no hay sesión activa
+  // Sin sesión → redirigir al login
   if (!user && esRutaProtegida) {
     const url = solicitud.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  // Redirigir al admin si ya tiene sesión e intenta acceder al login
-  if (user && esRutaLogin) {
-    const url = solicitud.nextUrl.clone()
-    url.pathname = '/admin'
-    return NextResponse.redirect(url)
+  // Con sesión en rutas que requieren chequeo de rol
+  if (user && (esRutaAdmin || esRutaLogin)) {
+    const { data: perfil } = await supabase
+      .from('profiles')
+      .select('role_id')
+      .eq('id', user.id)
+      .single()
+
+    const esAdmin = perfil?.role_id === 1
+
+    // role_id=2 intenta entrar al panel admin → redirigir a inventarios
+    if (esRutaAdmin && !esAdmin) {
+      const url = solicitud.nextUrl.clone()
+      url.pathname = '/inventarios'
+      return NextResponse.redirect(url)
+    }
+
+    // Ya tiene sesión e intenta acceder al login → redirigir al panel correcto
+    if (esRutaLogin) {
+      const url = solicitud.nextUrl.clone()
+      url.pathname = esAdmin ? '/admin' : '/inventarios'
+      return NextResponse.redirect(url)
+    }
   }
 
   return respuestaSupabase
