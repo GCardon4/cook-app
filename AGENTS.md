@@ -27,3 +27,4 @@ src/
 - **Frontend**: Next.js - React
 - **Backend**: Supabase (Auth, PostgreSQL, Storage)
 - **PWA**: Workbox (configurado)
+

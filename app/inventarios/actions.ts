@@ -44,6 +44,7 @@ export async function asignarDesdeInventario(
   if (error) return { error: 'No se pudo realizar la asignación. Intenta de nuevo.' }
 
   revalidatePath('/inventarios')
+  revalidatePath('/inventarios/utensilios')
   return { exito: `${cantidad} unidad${cantidad !== 1 ? 'es' : ''} asignada${cantidad !== 1 ? 's' : ''} correctamente.` }
 }
 
@@ -127,6 +128,7 @@ export async function agregarPorEscaneo(
 
   revalidatePath('/inventarios')
   revalidatePath('/inventarios/asignaciones')
+  revalidatePath('/inventarios/utensilios')
   return { exito: `+1 ${utensilio.name}`, utensilio: utensilio.name as string }
 }
 
@@ -168,5 +170,6 @@ export async function entregarPorEscaneo(
 
   revalidatePath('/inventarios')
   revalidatePath('/inventarios/asignaciones')
+  revalidatePath('/inventarios/utensilios')
   return { exito: `-1 ${utensilio.name}`, utensilio: utensilio.name as string }
 }

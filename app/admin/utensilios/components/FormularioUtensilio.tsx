@@ -1,8 +1,9 @@
 'use client'
 
-import { useActionState, useState, useEffect, useRef } from 'react'
+import { useActionState, useState } from 'react'
 import Link from 'next/link'
 import { crearClienteNavegador } from '@/lib/supabase/client'
+import BarcodeViewer from '@/components/BarcodeViewer'
 import type { EstadoFormulario } from '../actions'
 
 interface Props {
@@ -14,83 +15,6 @@ interface Props {
     stock: string
   }
   esEdicion?: boolean
-}
-
-// Vista previa del código de barras Code128 real generado con ZXing
-function VistaPreviaBarcode({ sku, esNuevo }: { sku: string; esNuevo: boolean }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [errorCanvas, setErrorCanvas] = useState(false)
-
-  useEffect(() => {
-    if (!sku || !canvasRef.current) return
-    setErrorCanvas(false)
-    const canvas = canvasRef.current
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    import('@zxing/library').then(({ MultiFormatWriter, BarcodeFormat, EncodeHintType }) => {
-      try {
-        const hints = new Map()
-        hints.set(EncodeHintType.MARGIN, 2)
-        hints.set(EncodeHintType.ERROR_CORRECTION, 'M')
-        const writer = new MultiFormatWriter()
-        const size = canvas.width
-        const matrix = writer.encode(sku, BarcodeFormat.QR_CODE, size, size, hints)
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, size, size)
-        ctx.fillStyle = '#000000'
-        for (let x = 0; x < matrix.getWidth(); x++) {
-          for (let y = 0; y < matrix.getHeight(); y++) {
-            if (matrix.get(x, y)) ctx.fillRect(x, y, 1, 1)
-          }
-        }
-      } catch {
-        setErrorCanvas(true)
-      }
-    }).catch(() => setErrorCanvas(true))
-  }, [sku])
-
-  if (!sku) return null
-
-  return (
-    <div
-      className={`mt-3 rounded-xl border overflow-hidden transition-all duration-300 ${
-        esNuevo
-          ? 'border-primary/30 shadow-[0_4px_20px_rgba(0,104,95,0.08)]'
-          : 'border-outline-variant/40'
-      }`}
-    >
-      <div className="bg-white px-6 py-5 flex flex-col items-center gap-3">
-        {errorCanvas ? (
-          <div className="w-40 h-40 flex items-center justify-center text-outline text-xs text-center">
-            No se pudo generar el código QR
-          </div>
-        ) : (
-          <canvas
-            ref={canvasRef}
-            width={200}
-            height={200}
-            className="w-40 h-40 sm:w-48 sm:h-48"
-            style={{ imageRendering: 'pixelated' }}
-          />
-        )}
-        <p className="font-mono font-bold text-on-surface tracking-[0.25em] text-base select-all">
-          {sku}
-        </p>
-      </div>
-
-      {esNuevo && (
-        <div className="bg-primary/5 border-t border-primary/15 px-4 py-2 flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary text-[16px] icon-fill">
-            check_circle
-          </span>
-          <p className="text-primary text-xs font-medium">
-            Código único generado · verificado en el sistema
-          </p>
-        </div>
-      )}
-    </div>
-  )
 }
 
 const estadoInicial: EstadoFormulario = null
@@ -253,9 +177,9 @@ export default function FormularioUtensilio({
           </p>
         )}
 
-        {/* Vista previa del código de barras */}
+        {/* Vista previa y descarga del código de barras */}
         {skuValor && (
-          <VistaPreviaBarcode sku={skuValor} esNuevo={codigoRecienGenerado} />
+          <BarcodeViewer sku={skuValor} esNuevo={codigoRecienGenerado} />
         )}
       </div>
 

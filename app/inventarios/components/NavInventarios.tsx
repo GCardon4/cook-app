@@ -8,13 +8,13 @@ import { accionCerrarSesion } from '@/app/login/actions'
 // Tabs disponibles según el rol
 const tabsAdmin = [
   { href: '/inventarios', icono: 'group', etiqueta: 'Cocineras' },
-  { href: '/inventarios/escanear', icono: 'qr_code_scanner', etiqueta: 'Escanear' },
+  { href: '/inventarios/utensilios', icono: 'kitchen', etiqueta: 'Utensilios' },
   { href: '/inventarios/asignaciones', icono: 'inventory_2', etiqueta: 'Detalle' },
 ]
 
 const tabsInventarios = [
   { href: '/inventarios', icono: 'group', etiqueta: 'Cocineras' },
-  { href: '/inventarios/escanear', icono: 'qr_code_scanner', etiqueta: 'Escanear' },
+  { href: '/inventarios/utensilios', icono: 'kitchen', etiqueta: 'Utensilios' },
 ]
 
 interface Props {
