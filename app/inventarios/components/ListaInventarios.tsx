@@ -341,8 +341,8 @@ export default function ListaInventarios({ utensilios, cocineras }: Props) {
         scanBuffer.current = ''
         lastScanTime.current = 0
 
-        if (buf.length >= 3 && /^\d+$/.test(buf)) {
-          const sku = parseInt(buf)
+        if (buf.length >= 3) {
+          const sku = buf.toUpperCase()
           const encontrado = utensilios.find((u) => u.sku === sku)
           if (encontrado) {
             setUtensilioActivo(encontrado)
@@ -357,7 +357,7 @@ export default function ListaInventarios({ utensilios, cocineras }: Props) {
         return
       }
 
-      if (e.key.length !== 1 || !/\d/.test(e.key)) return
+      if (e.key.length !== 1 || !/[\w-]/.test(e.key)) return
 
       const elapsed = now - lastScanTime.current
       lastScanTime.current = now

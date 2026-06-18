@@ -123,14 +123,14 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   // Procesar código escaneado según el modo activo
   const procesarEscaneo = useCallback(
     (codigo: string, modo: 'agregar' | 'entrega', cocinera: CocineraResumen) => {
-      const skuNum = parseInt(codigo.replace(/\D/g, ''))
-      if (!skuNum) { mostrarToast('error', 'Código no válido.'); return }
+      const sku = codigo.trim().toUpperCase()
+      if (!sku) { mostrarToast('error', 'Código no válido.'); return }
 
       startTransition(async () => {
         const resultado =
           modo === 'agregar'
-            ? await agregarPorEscaneo(cocinera.id, skuNum)
-            : await entregarPorEscaneo(cocinera.id, skuNum)
+            ? await agregarPorEscaneo(cocinera.id, sku)
+            : await entregarPorEscaneo(cocinera.id, sku)
 
         if (resultado?.exito) {
           mostrarToast('ok', resultado.exito)
@@ -141,7 +141,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
             if (modo === 'entrega') {
               setInventarioActual((prev) =>
                 prev.flatMap((item) =>
-                  item.sku === skuNum
+                  item.sku === sku
                     ? item.cantidad <= 1 ? [] : [{ ...item, cantidad: item.cantidad - 1 }]
                     : [item]
                 )
@@ -149,15 +149,15 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
             } else {
               // AGREGAR: incrementar si existe, añadir si es nuevo
               setInventarioActual((prev) => {
-                const existe = prev.some((item) => item.sku === skuNum)
+                const existe = prev.some((item) => item.sku === sku)
                 if (existe) {
                   return prev.map((item) =>
-                    item.sku === skuNum ? { ...item, cantidad: item.cantidad + 1 } : item
+                    item.sku === sku ? { ...item, cantidad: item.cantidad + 1 } : item
                   )
                 }
                 return [
                   ...prev,
-                  { inventarioId: -skuNum, nombre: resultado.utensilio!, sku: skuNum, cantidad: 1 },
+                  { inventarioId: 0, nombre: resultado.utensilio!, sku, cantidad: 1 },
                 ]
               })
             }

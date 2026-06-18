@@ -80,15 +80,15 @@ function PanelCocinera({
 
   // Procesar código escaneado: descuenta 1 unidad; si llega a 0, elimina la asignación
   const procesarEscaneo = useCallback((codigo: string) => {
-    const skuNum = parseInt(codigo.replace(/\D/g, ''))
-    if (!skuNum) {
+    const sku = codigo.trim().toUpperCase()
+    if (!sku) {
       setFeedbackEscaner({ tipo: 'error', msg: 'Código no válido.' })
       setTimeout(() => setFeedbackEscaner(null), 2500)
       return
     }
-    const asig = asignaciones.find((a) => a.utensilio.sku === skuNum)
+    const asig = asignaciones.find((a) => a.utensilio.sku === sku)
     if (!asig) {
-      setFeedbackEscaner({ tipo: 'error', msg: `SKU ${skuNum} no está en la lista de esta cocinera.` })
+      setFeedbackEscaner({ tipo: 'error', msg: `SKU ${sku} no está en la lista de esta cocinera.` })
       setTimeout(() => setFeedbackEscaner(null), 3000)
       return
     }

@@ -13,7 +13,7 @@ export type AsignacionDetalle = {
 export type ResultadoScan = {
   id: number
   name: string
-  sku: number | null
+  sku: string | null
   description: string | null
   stockTotal: number
   stockAsignado: number
@@ -24,7 +24,7 @@ export type ResultadoScan = {
 export type EstadoAsignacion = { error?: string; exito?: string } | null
 
 // Buscar utensilio por código SKU con detalle de stock
-export async function buscarPorSKU(sku: number): Promise<ResultadoScan> {
+export async function buscarPorSKU(sku: string): Promise<ResultadoScan> {
   const supabase = await crearClienteServidor()
 
   const { data, error } = await supabase
@@ -66,7 +66,7 @@ export async function buscarPorSKU(sku: number): Promise<ResultadoScan> {
   return {
     id: data.id as number,
     name: data.name as string,
-    sku: data.sku as number | null,
+    sku: data.sku as string | null,
     description: data.description as string | null,
     stockTotal,
     stockAsignado,

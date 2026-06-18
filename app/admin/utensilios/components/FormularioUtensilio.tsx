@@ -52,8 +52,11 @@ export default function FormularioUtensilio({
         .limit(1)
         .maybeSingle()
 
-      const maxSKU = data?.sku ? Number(data.sku) : 10000
-      const nuevoSKU = (maxSKU + 1).toString()
+      const lastSku = data?.sku ?? ''
+      const match = lastSku.match(/^(.*?)(\d+)$/)
+      const nuevoSKU = match
+        ? `${match[1]}${(parseInt(match[2], 10) + 1).toString().padStart(match[2].length, '0')}`
+        : 'PRO-0001'
 
       setSkuValor(nuevoSKU)
       setCodigoRecienGenerado(true)
@@ -138,15 +141,14 @@ export default function FormularioUtensilio({
           <input
             id="sku"
             name="sku"
-            type="number"
+            type="text"
             value={skuValor}
             onChange={(e) => {
-              setSkuValor(e.target.value)
+              setSkuValor(e.target.value.toUpperCase())
               setCodigoRecienGenerado(false)
             }}
-            placeholder="Código numérico o usa el botón para generarlo..."
-            min={1}
-            className={`w-full pl-11 pr-4 py-3 rounded-xl border text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+            placeholder="Ej: PRO-0010 o usa el botón para generarlo..."
+            className={`w-full pl-11 pr-4 py-3 rounded-xl border text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary transition-all ${
               codigoRecienGenerado
                 ? 'border-primary bg-primary/5'
                 : 'border-outline-variant bg-surface-container-low'
@@ -173,7 +175,7 @@ export default function FormularioUtensilio({
         {/* Hint de ayuda */}
         {!codigoRecienGenerado && (
           <p className="text-outline text-xs mt-1.5">
-            Número único del código de barras. Usa el botón &quot;Generar código&quot; para asignarlo automáticamente.
+            Código alfanumérico único, ej: PRO-0010. Usa el botón &quot;Generar código&quot; para asignarlo automáticamente.
           </p>
         )}
 

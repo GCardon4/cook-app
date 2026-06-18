@@ -16,9 +16,9 @@ function validarCampos(datos: FormData) {
   if (nombre.length > 100)
     return { error: 'El nombre no puede superar 100 caracteres.' }
 
-  const sku = skuRaw ? Number(skuRaw) : null
-  if (skuRaw && (isNaN(sku!) || sku! <= 0))
-    return { error: 'El SKU debe ser un número positivo.' }
+  const sku = skuRaw || null
+  if (sku && sku.length > 50)
+    return { error: 'El SKU no puede superar 50 caracteres.' }
 
   const stock = stockRaw ? Number(stockRaw) : 0
   if (isNaN(stock) || stock < 0)

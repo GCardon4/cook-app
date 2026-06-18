@@ -12,7 +12,7 @@ export type CocineraConInventario = {
     utensilio: {
       id: number
       name: string
-      sku: number | null
+      sku: string | null
       stockTotal: number
     }
   }[]
@@ -21,7 +21,7 @@ export type CocineraConInventario = {
 export type UtensilioDisponible = {
   id: number
   name: string
-  sku: number | null
+  sku: string | null
   stockDisponible: number
 }
 
@@ -48,7 +48,7 @@ async function obtenerCocineras(): Promise<CocineraConInventario[]> {
     const invRows = c.inventory as {
       id: number
       stock: number | null
-      utensils: { id: number; name: string; sku: number | null; stock: number | null } | { id: number; name: string; sku: number | null; stock: number | null }[] | null
+      utensils: { id: number; name: string; sku: string | null; stock: number | null } | { id: number; name: string; sku: string | null; stock: number | null }[] | null
     }[]
 
     const asignaciones = invRows
@@ -95,7 +95,7 @@ async function obtenerUtensiliosDisponibles(): Promise<UtensilioDisponible[]> {
       return {
         id: u.id as number,
         name: u.name as string,
-        sku: u.sku as number | null,
+        sku: u.sku != null ? String(u.sku) : null,
         stockDisponible: Math.max(0, ((u.stock as number | null) ?? 0) - asignado),
       }
     })

@@ -52,8 +52,8 @@ export default function EscanerCodigo({ cocineras }: Props) {
 
   // Buscar utensilio por SKU y actualizar resultado
   const buscarUtensilio = useCallback(async (sku: string) => {
-    const skuNum = parseInt(sku.replace(/\D/g, ''))
-    if (!skuNum || skuNum < 1) return
+    const skuNorm = sku.trim().toUpperCase()
+    if (!skuNorm) return
 
     setBuscando(true)
     setResultado(null)
@@ -65,7 +65,7 @@ export default function EscanerCodigo({ cocineras }: Props) {
     setEntregaMap({})
     setPanelActivo('asignar')
 
-    const res = await buscarPorSKU(skuNum)
+    const res = await buscarPorSKU(skuNorm)
     setBuscando(false)
 
     if (res) {
@@ -73,15 +73,10 @@ export default function EscanerCodigo({ cocineras }: Props) {
       setPanelActivo(res.stockDisponible === 0 ? 'entrega' : 'asignar')
       setModalAbierto(true)
     } else {
-      setErrorBusqueda(`No se encontró ningún utensilio con SKU ${skuNum}.`)
+      setErrorBusqueda(`No se encontró ningún utensilio con SKU ${skuNorm}.`)
     }
   }, [])
 
-  // Refrescar resultado sin limpiar el panel activo
-  const refrescarResultado = useCallback(async (sku: number) => {
-    const res = await buscarPorSKU(sku)
-    if (res) setResultado(res)
-  }, [])
 
   // Iniciar escáner de cámara con ZXing
   const iniciarCamara = useCallback(async () => {

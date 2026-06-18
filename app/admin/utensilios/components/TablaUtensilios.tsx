@@ -7,7 +7,7 @@ import { eliminarUtensilio } from '../actions'
 type FilaUtensilio = {
   id: number
   name: string
-  sku: number | null
+  sku: string | null
   description: string | null
   stock: number
   stockAsignado: number
@@ -32,7 +32,7 @@ export default function TablaUtensilios({ utensilios }: Props) {
     const q = busqueda.toLowerCase()
     return (
       u.name.toLowerCase().includes(q) ||
-      u.sku?.toString().includes(q) ||
+      u.sku?.toLowerCase().includes(q) ||
       (u.description ?? '').toLowerCase().includes(q)
     )
   })

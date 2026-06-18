@@ -169,7 +169,7 @@ export default async function PaginaAdmin() {
             </div>
           ) : (
             <div className="space-y-3">
-              {(sinAsignar as { id: number; name: string; sku: number | null }[])
+              {(sinAsignar as { id: number; name: string; sku: string | null }[])
                 .slice(0, 6)
                 .map((u, idx) => {
                   const porcentaje = Math.max(10, 100 - (idx + 1) * 15)
@@ -260,7 +260,7 @@ export default async function PaginaAdmin() {
           </div>
         ) : (
           <div className="divide-y divide-outline-variant/20">
-            {(recientesUtensilios as { id: number; name: string; sku: number | null; created_at: string }[]).map((u) => (
+            {(recientesUtensilios as { id: number; name: string; sku: string | null; created_at: string }[]).map((u) => (
               <div key={u.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">

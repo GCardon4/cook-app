@@ -27,7 +27,7 @@ async function obtenerStockUtensilios() {
     return {
       id: u.id as number,
       name: u.name as string,
-      sku: u.sku as number | null,
+      sku: u.sku as string | null,
       description: u.description as string | null,
       stockTotal,
       stockAsignado,

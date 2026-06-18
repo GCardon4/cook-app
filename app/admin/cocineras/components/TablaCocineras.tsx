@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { eliminarCocinera, asignarEscuelasCocinera } from '../actions'
 
 type EscuelaAsignada = { id: number; name: string }
-type UtensilioAsignado = { id: number; name: string; sku: number | null }
+type UtensilioAsignado = { id: number; name: string; sku: string | null }
 
 type FilaCocinera = {
   id: number

@@ -38,7 +38,7 @@ async function obtenerCocineras() {
 
     const inventario = c.inventory as {
       id: number
-      utensils: { id: number; name: string; sku: number | null }[] | null
+      utensils: { id: number; name: string; sku: string | null }[] | null
     }[]
 
     const escuelas = cookSchool
@@ -51,9 +51,9 @@ async function obtenerCocineras() {
     const utensilios = inventario
       .map((inv) => {
         const u = Array.isArray(inv.utensils) ? inv.utensils[0] : inv.utensils
-        return u ? { id: u.id, name: u.name, sku: u.sku } : null
+        return u ? { id: u.id, name: u.name, sku: u.sku != null ? String(u.sku) : null } : null
       })
-      .filter(Boolean) as { id: number; name: string; sku: number | null }[]
+      .filter(Boolean) as { id: number; name: string; sku: string | null }[]
 
     return {
       id: c.id as number,

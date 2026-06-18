@@ -13,7 +13,7 @@ import {
 type ItemUtensilio = {
   id: number
   name: string
-  sku: number | null
+  sku: string | null
   description: string | null
   stockTotal: number
   stockAsignado: number
@@ -72,7 +72,7 @@ export default function GestorUtensilios({ utensilios }: Props) {
     const q = busqueda.toLowerCase()
     return (
       u.name.toLowerCase().includes(q) ||
-      u.sku?.toString().includes(q) ||
+      u.sku?.toLowerCase().includes(q) ||
       (u.description ?? '').toLowerCase().includes(q)
     )
   })
@@ -89,7 +89,7 @@ export default function GestorUtensilios({ utensilios }: Props) {
   // Abrir modal con datos del utensilio a editar
   const abrirModalEditar = (u: ItemUtensilio) => {
     setUtensilioEditando(u)
-    setSkuValor(u.sku?.toString() ?? '')
+    setSkuValor(u.sku ?? '')
     setErrorModal(null)
     setErrorSKU(null)
     setModalAbierto(true)
@@ -115,8 +115,12 @@ export default function GestorUtensilios({ utensilios }: Props) {
         .order('sku', { ascending: false })
         .limit(1)
         .maybeSingle()
-      const maxSKU = data?.sku ? Number(data.sku) : 10000
-      setSkuValor((maxSKU + 1).toString())
+      const lastSku = data?.sku ?? ''
+      const match = lastSku.match(/^(.*?)(\d+)$/)
+      const nuevoSKU = match
+        ? `${match[1]}${(parseInt(match[2], 10) + 1).toString().padStart(match[2].length, '0')}`
+        : 'PRO-0001'
+      setSkuValor(nuevoSKU)
     } catch {
       setErrorSKU('No se pudo generar. Ingrésalo manualmente.')
     } finally {
@@ -430,12 +434,11 @@ export default function GestorUtensilios({ utensilios }: Props) {
                   <input
                     id="sku"
                     name="sku"
-                    type="number"
+                    type="text"
                     value={skuValor}
-                    onChange={(e) => setSkuValor(e.target.value)}
-                    placeholder="Código numérico..."
-                    min={1}
-                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    onChange={(e) => setSkuValor(e.target.value.toUpperCase())}
+                    placeholder="Ej: PRO-0010..."
+                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-outline-variant bg-surface-container-low text-on-surface placeholder:text-outline text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all"
                   />
                 </div>
                 {errorSKU && <p className="text-amber-600 text-xs mt-1.5">{errorSKU}</p>}

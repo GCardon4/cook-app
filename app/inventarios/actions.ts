@@ -51,7 +51,7 @@ export async function asignarDesdeInventario(
 export type ItemInventarioCocinera = {
   inventarioId: number
   nombre: string
-  sku: number | null
+  sku: string | null
   cantidad: number
 }
 
@@ -72,7 +72,7 @@ export async function obtenerInventarioCocinera(
     return {
       inventarioId: row.id as number,
       nombre: (u as { name: string } | null)?.name ?? 'Desconocido',
-      sku: (u as { sku: number | null } | null)?.sku ?? null,
+      sku: (u as { sku: string | null } | null)?.sku ?? null,
       cantidad: (row.stock as number | null) ?? 1,
     }
   })
@@ -87,7 +87,7 @@ export type ResultadoEscaneo = {
 // Agregar 1 unidad al inventario de una cocinera escaneando por SKU
 export async function agregarPorEscaneo(
   cocineraId: number,
-  sku: number
+  sku: string
 ): Promise<ResultadoEscaneo> {
   const supabase = await crearClienteServidor()
 
@@ -135,7 +135,7 @@ export async function agregarPorEscaneo(
 // Entregar (devolver) 1 unidad de una cocinera escaneando por SKU
 export async function entregarPorEscaneo(
   cocineraId: number,
-  sku: number
+  sku: string
 ): Promise<ResultadoEscaneo> {
   const supabase = await crearClienteServidor()
 

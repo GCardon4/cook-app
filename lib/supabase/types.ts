@@ -19,7 +19,7 @@ export type Perfil = {
 export type Utensilio = {
   id: number
   name: string
-  sku: number | null
+  sku: string | null
   description: string | null
   created_at: string
   updated_at: string
@@ -60,7 +60,7 @@ export type ColegioCocinera = {
 export type UtensilioConInventario = {
   id: number
   name: string
-  sku: number | null
+  sku: string | null
   description: string | null
   stock: number
   created_at: string
