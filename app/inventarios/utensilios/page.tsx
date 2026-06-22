@@ -50,10 +50,6 @@ export default async function PaginaUtensiliosInventario() {
       {/* Encabezado */}
       <div className="mb-6">
         <h2 className="text-on-surface font-bold text-2xl md:text-3xl">Stock de Utensilios</h2>
-        <p className="text-on-surface-variant text-base mt-1">
-          {totalTipos} tipo{totalTipos !== 1 ? 's' : ''} &middot; {totalUnidades} unidades totales &middot;{' '}
-          {totalDisponible} disponible{totalDisponible !== 1 ? 's' : ''}
-        </p>
       </div>
 
       {/* Tarjetas de resumen */}
@@ -81,21 +77,6 @@ export default async function PaginaUtensiliosInventario() {
           <p className="text-on-surface-variant text-xs font-medium mt-1">Alertas</p>
         </div>
       </div>
-
-      {/* Banner de alertas críticas */}
-      {alertas.length > 0 && (
-        <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-start gap-3">
-            <span className="material-symbols-outlined text-amber-600 text-[22px] mt-0.5 icon-fill">warning</span>
-            <div>
-              <p className="text-amber-800 font-semibold text-sm">
-                {alertas.length} utensilio{alertas.length !== 1 ? 's' : ''} con stock crítico
-              </p>
-              <p className="text-amber-700 text-xs mt-0.5">{alertas.map((u) => u.name).join(', ')}</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Lista interactiva con CRUD */}
       <GestorUtensilios utensilios={utensilios} />
