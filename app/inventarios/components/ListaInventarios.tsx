@@ -317,6 +317,25 @@ function PanelAsignacion({
   )
 }
 
+// Reproducir beep de confirmación de escaneo
+function reproducirBeep() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.value = 1800
+    gain.gain.setValueAtTime(0.4, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.12)
+    osc.onended = () => ctx.close()
+  } catch { /* Sin soporte de audio */ }
+}
+
 // ─── Lista principal ──────────────────────────────────────────────────────────
 export default function ListaInventarios({ utensilios, cocineras }: Props) {
   const [filtroActivo, setFiltroActivo] = useState('todos')
@@ -345,6 +364,7 @@ export default function ListaInventarios({ utensilios, cocineras }: Props) {
           const sku = buf.toUpperCase()
           const encontrado = utensilios.find((u) => u.sku === sku)
           if (encontrado) {
+            reproducirBeep()
             setUtensilioActivo(encontrado)
             setDesdeEscaner(true)
             setTextoBusqueda('')

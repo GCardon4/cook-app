@@ -58,6 +58,25 @@ function construirUrlWhatsApp(
   return `https://wa.me/57${cocinera.phone}?text=${encodeURIComponent(mensaje)}`
 }
 
+// Reproducir beep de confirmación de escaneo
+function reproducirBeep() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.value = 1800
+    gain.gain.setValueAtTime(0.4, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.12)
+    osc.onended = () => ctx.close()
+  } catch { /* Sin soporte de audio */ }
+}
+
 export default function VistaInventarios({ cocineras }: { cocineras: CocineraResumen[] }) {
   const [vista, setVista] = useState<Vista>('cocineras')
   const [cocineraActiva, setCocineraActiva] = useState<CocineraResumen | null>(null)
@@ -88,6 +107,8 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   const controlsRef = useRef<any>(null)
   const ultimoSKURef = useRef('')
   const procesarRef = useRef<(codigo: string) => void>(() => {})
+  const [flashDetectado, setFlashDetectado] = useState(false)
+  const [toastScan, setToastScan] = useState<string | null>(null)
 
   // Reconocimiento de voz para buscar cocineras
   const iniciarVoz = useCallback(() => {
@@ -187,7 +208,10 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
       const now = Date.now()
       if (e.key === 'Enter') {
-        if (buf.chars.length > 2) procesarRef.current(buf.chars)
+        if (buf.chars.length > 2) {
+          reproducirBeep()
+          procesarRef.current(buf.chars)
+        }
         buf.chars = ''
         return
       }
@@ -234,6 +258,11 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
           const texto = result.getText()
           if (texto === ultimoSKURef.current) return
           ultimoSKURef.current = texto
+          reproducirBeep()
+          setFlashDetectado(true)
+          setToastScan(texto)
+          setTimeout(() => setFlashDetectado(false), 300)
+          setTimeout(() => setToastScan(null), 2000)
           procesarRef.current(texto)
           setTimeout(() => { ultimoSKURef.current = '' }, 4000)
         }
@@ -503,6 +532,15 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
 
     return (
       <div className="max-w-md mx-auto">
+
+        {/* Toast flotante de escaneo — visible incluso sobre el panel */}
+        {toastScan && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-primary text-on-primary shadow-xl text-sm font-semibold whitespace-nowrap">
+            <span className="material-symbols-outlined text-[20px] icon-fill">barcode_reader</span>
+            {toastScan}
+          </div>
+        )}
+
         <button onClick={volverAAccion} className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface mb-5 transition-colors">
           <span className="material-symbols-outlined text-[20px]">arrow_back</span>
           <span className="text-sm font-medium">Volver</span>
@@ -566,6 +604,12 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
           <div className="mb-5 bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-outline-variant/20">
             <div className="relative bg-black aspect-[4/3] overflow-hidden">
               <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+
+              {/* Flash visual al detectar código */}
+              {flashDetectado && (
+                <div className="absolute inset-0 bg-white/30 pointer-events-none z-10" />
+              )}
+
               {camaraActiva && !errorCamara && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="relative w-48 h-48">

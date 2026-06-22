@@ -16,6 +16,25 @@ interface Props {
   cocineras: { id: number; name: string }[]
 }
 
+// Reproducir beep de confirmación de escaneo
+function reproducirBeep() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.value = 1800
+    gain.gain.setValueAtTime(0.4, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.12)
+    osc.onended = () => ctx.close()
+  } catch { /* Sin soporte de audio */ }
+}
+
 export default function EscanerCodigo({ cocineras }: Props) {
   const [modo, setModo] = useState<Modo>('camara')
   const [buscando, setBuscando] = useState(false)
@@ -43,6 +62,8 @@ export default function EscanerCodigo({ cocineras }: Props) {
   const [camaraSeleccionada, setCamaraSeleccionada] = useState<string | undefined>(undefined)
   const [ultimoEscaneado, setUltimoEscaneado] = useState<string | null>(null)
   const [modalAbierto, setModalAbierto] = useState(false)
+  const [toastEscaneo, setToastEscaneo] = useState<string | null>(null)
+  const [flashDetectado, setFlashDetectado] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -120,6 +141,11 @@ export default function EscanerCodigo({ cocineras }: Props) {
           if (texto === ultimoSKURef.current) return
           ultimoSKURef.current = texto
           setUltimoEscaneado(texto)
+          reproducirBeep()
+          setToastEscaneo(texto)
+          setFlashDetectado(true)
+          setTimeout(() => setFlashDetectado(false), 300)
+          setTimeout(() => setToastEscaneo(null), 2000)
           buscarUtensilio(texto)
           setTimeout(() => { ultimoSKURef.current = '' }, 4000)
         }
@@ -176,6 +202,7 @@ export default function EscanerCodigo({ cocineras }: Props) {
 
   const manejarEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && codigoInput.trim()) {
+      reproducirBeep()
       buscarUtensilio(codigoInput.trim())
       setCodigoInput('')
     }
@@ -234,6 +261,14 @@ export default function EscanerCodigo({ cocineras }: Props) {
   return (
     <div className="max-w-lg mx-auto" onClick={() => { if (modo === 'escaner') inputRef.current?.focus() }}>
 
+      {/* Toast flotante de escaneo — visible incluso con modal abierto */}
+      {toastEscaneo && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-primary text-on-primary shadow-xl text-sm font-semibold whitespace-nowrap">
+          <span className="material-symbols-outlined text-[20px] icon-fill">barcode_reader</span>
+          {toastEscaneo}
+        </div>
+      )}
+
       {/* Selector de modo */}
       <div className="flex gap-2 p-1 bg-surface-container rounded-2xl mb-5">
         {[
@@ -262,6 +297,11 @@ export default function EscanerCodigo({ cocineras }: Props) {
         <div className="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-surface-container-high/50 mb-4">
           <div className="relative bg-black aspect-[4/3] overflow-hidden">
             <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+
+            {/* Flash visual al detectar código */}
+            {flashDetectado && (
+              <div className="absolute inset-0 bg-white/30 pointer-events-none z-10 transition-opacity" />
+            )}
 
             {camaraActiva && !errorCamara && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">

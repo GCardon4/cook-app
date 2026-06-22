@@ -35,6 +35,25 @@ function construirUrlWhatsAppInventario(
   return `https://wa.me/57${cocinera.phone}?text=${encodeURIComponent(mensaje)}`
 }
 
+// Reproducir beep de confirmación de escaneo
+function reproducirBeep() {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = new ((window as any).AudioContext || (window as any).webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.value = 1800
+    gain.gain.setValueAtTime(0.4, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12)
+    osc.start(ctx.currentTime)
+    osc.stop(ctx.currentTime + 0.12)
+    osc.onended = () => ctx.close()
+  } catch { /* Sin soporte de audio */ }
+}
+
 // ─── Panel de detalle de cocinera ─────────────────────────────────────────────
 function PanelCocinera({
   cocinera,
@@ -93,6 +112,7 @@ function PanelCocinera({
       return
     }
 
+    reproducirBeep()
     const nuevaCantidad = asig.stockAsignado - 1
     setDestacadoId(asig.id)
     setTimeout(() => setDestacadoId(null), 800)
