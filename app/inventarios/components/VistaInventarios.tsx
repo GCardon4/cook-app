@@ -49,10 +49,10 @@ function construirUrlWhatsApp(
     .join('\n')
 
   const mensaje =
-    `Hola ${cocinera.name}! 👋\n\n` +
-    `Utensilios asignados esta sesión:\n\n` +
+    `*Hola ${cocinera.name}!*\n\n` +
+    `Utensilios asignados:\n\n` +
     `${lista}\n\n` +
-    `Total: ${cantidades.size} tipo(s) · ${totalUnidades} unidad(es)\n\n` +
+    `*Total:*  ${totalUnidades} Utensilios\n\n` +
     `_PROACTIVO_ 🍽️`
 
   return `https://wa.me/57${cocinera.phone}?text=${encodeURIComponent(mensaje)}`
