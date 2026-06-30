@@ -28,6 +28,34 @@ function formatearDoc(doc: number | null) {
   return doc.toLocaleString('es-CO')
 }
 
+// Construir URL de WhatsApp con lista independiente (sin historial)
+function construirUrlWhatsAppCocinera(
+  cocinera: CocineraResumen,
+  utensilios: { nombre: string; cantidad: number }[] = []
+): string | null {
+  if (!cocinera.phone) return null
+
+  let mensaje = `*Hola ${cocinera.name}!*\n\n`
+
+  if (utensilios.length > 0) {
+    const totalUnidades = utensilios.reduce((acc, u) => acc + u.cantidad, 0)
+    const lista = utensilios.map((u) => `• ${u.nombre} × ${u.cantidad}`).join('\n')
+
+    mensaje +=
+      `Tus utensilios asignados:\n\n` +
+      `${lista}\n\n` +
+      `*Total:*  ${totalUnidades} Utensilios\n\n`
+  } else {
+    mensaje +=
+      `*Tipos de utensilios:* ${cocinera.totalTipos}\n` +
+      `*Total de unidades:* ${cocinera.totalUnidades}\n\n`
+  }
+
+  mensaje += `_PROACTIVO_ 🍽️`
+
+  return `https://wa.me/57${cocinera.phone}?text=${encodeURIComponent(mensaje)}`
+}
+
 // Construir URL de WhatsApp con el resumen de la sesión AGREGAR
 function construirUrlWhatsApp(
   cocinera: CocineraResumen,
@@ -44,13 +72,16 @@ function construirUrlWhatsApp(
   if (cantidades.size === 0) return null
 
   const totalUnidades = Array.from(cantidades.values()).reduce((a, b) => a + b, 0)
-  const lista = Array.from(cantidades.entries())
-    .map(([nombre, cantidad]) => `• ${nombre} × ${cantidad}`)
-    .join('\n')
+  const lista =
+    cantidades.size > 0
+      ? Array.from(cantidades.entries())
+          .map(([nombre, cantidad]) => `• ${nombre} × ${cantidad}`)
+          .join('\n')
+      : '• Sin utensilios asignados'
 
   const mensaje =
     `*Hola ${cocinera.name}!*\n\n` +
-    `Utensilios asignados:\n\n` +
+    `Tus utensilios asignados:\n\n` +
     `${lista}\n\n` +
     `*Total:*  ${totalUnidades} Utensilios\n\n` +
     `_PROACTIVO_ 🍽️`
@@ -95,6 +126,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   // Inventario actual de la cocinera (visible en AGREGAR y ENTREGA)
   const [inventarioActual, setInventarioActual] = useState<ItemInventarioCocinera[]>([])
   const [cargandoInventario, setCargandoInventario] = useState(false)
+  const [inventarioAccion, setInventarioAccion] = useState<ItemInventarioCocinera[]>([])
 
   // Cámara
   const [camaraAbierta, setCamaraAbierta] = useState(false)
@@ -198,6 +230,18 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     procesarRef.current = (codigo: string) =>
       procesarEscaneo(codigo, modoActual, cocineraActiva)
   })
+
+  // Cargar inventario en ACCION
+  useEffect(() => {
+    if (vista !== 'accion' || !cocineraActiva) return
+
+    const cargarInventario = async () => {
+      const items = await obtenerInventarioCocinera(cocineraActiva.id)
+      setInventarioAccion(items)
+    }
+
+    cargarInventario()
+  }, [vista, cocineraActiva])
 
   // Escáner hardware: detecta ráfaga de teclas < 120ms (lector USB/Bluetooth)
   useEffect(() => {
@@ -461,6 +505,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
                   <p className="text-outline text-[10px] uppercase tracking-wide">Unidades</p>
                 </div>
               </div>
+
               <div className="mt-3 flex items-center gap-1.5 text-primary opacity-0 group-hover:opacity-100 transition-opacity">
                 <span className="material-symbols-outlined text-[14px] icon-fill">qr_code_scanner</span>
                 <span className="text-xs font-semibold">Agregar · Entrega</span>
@@ -484,7 +529,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
         <div className="w-16 h-16 rounded-full bg-primary/15 text-primary flex items-center justify-center font-black text-2xl shrink-0">
           {cocineraActiva.name.charAt(0).toUpperCase()}
         </div>
-        <div>
+        <div className="flex-1">
           <p className="text-on-surface font-bold text-xl leading-tight">{cocineraActiva.name}</p>
           {cocineraActiva.doc && <p className="text-outline text-sm mt-0.5">CC {formatearDoc(cocineraActiva.doc)}</p>}
           <p className="text-on-surface-variant text-xs mt-1">
@@ -492,6 +537,29 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
             {cocineraActiva.totalUnidades} unidad{cocineraActiva.totalUnidades !== 1 ? 'es' : ''}
           </p>
         </div>
+
+        {/* Boton Whatsapp */}
+        {construirUrlWhatsAppCocinera(
+          cocineraActiva,
+          inventarioAccion.map((item) => ({ nombre: item.nombre, cantidad: item.cantidad }))
+        ) && (
+          <a
+            href={
+              construirUrlWhatsAppCocinera(
+                cocineraActiva,
+                inventarioAccion.map((item) => ({ nombre: item.nombre, cantidad: item.cantidad }))
+              ) || '#'
+            }
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2.5 rounded-lg text-[#25D366] hover:bg-[#25D366]/10 transition-colors shrink-0"
+            title="Compartir asignación por WhatsApp"
+          >
+            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+            </svg>
+          </a>
+        )}
       </div>
 
       <div className="flex flex-col gap-4">
@@ -561,17 +629,32 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
               </p>
             </div>
           </div>
-          <button
-            onClick={() => setCamaraAbierta((v) => !v)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-              camaraAbierta ? 'bg-white/30' : 'bg-white/15 hover:bg-white/25'
-            }`}
-            title={camaraAbierta ? 'Cerrar cámara' : 'Abrir cámara'}
-          >
-            <span className="material-symbols-outlined text-[22px] icon-fill">
-              {camaraAbierta ? 'no_photography' : 'photo_camera'}
-            </span>
-          </button>
+          <div className="flex items-center gap-2">
+            {esAgregar && urlWhatsApp && (
+              <a
+                href={urlWhatsApp}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/15 hover:bg-white/25 transition-all"
+                title="Compartir utensilios por WhatsApp"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+                </svg>
+              </a>
+            )}
+            <button
+              onClick={() => setCamaraAbierta((v) => !v)}
+              className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                camaraAbierta ? 'bg-white/30' : 'bg-white/15 hover:bg-white/25'
+              }`}
+              title={camaraAbierta ? 'Cerrar cámara' : 'Abrir cámara'}
+            >
+              <span className="material-symbols-outlined text-[22px] icon-fill">
+                {camaraAbierta ? 'no_photography' : 'photo_camera'}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Toast de feedback */}
