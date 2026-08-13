@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import type { AsignacionHistorial } from '../page'
 
 type FiltroFecha = 'hoy' | 'semana' | 'mes' | 'semestre' | 'todos'
+type FiltroTipo = 'todos' | 'agregado' | 'entregado'
 
 const OPCIONES_FECHA: { valor: FiltroFecha; etiqueta: string }[] = [
   { valor: 'hoy', etiqueta: 'Hoy' },
@@ -11,6 +12,12 @@ const OPCIONES_FECHA: { valor: FiltroFecha; etiqueta: string }[] = [
   { valor: 'mes', etiqueta: 'Último mes' },
   { valor: 'semestre', etiqueta: 'Últimos 6 meses' },
   { valor: 'todos', etiqueta: 'Todos' },
+]
+
+const OPCIONES_TIPO: { valor: FiltroTipo; etiqueta: string; icono: string }[] = [
+  { valor: 'todos', etiqueta: 'Todos los tipos', icono: 'category' },
+  { valor: 'agregado', etiqueta: 'Agregado', icono: 'add_circle' },
+  { valor: 'entregado', etiqueta: 'Entregado', icono: 'assignment_return' },
 ]
 
 function obtenerRangoFecha(filtro: FiltroFecha): { inicio: Date; fin: Date } {
@@ -51,6 +58,8 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
   const [busqueda, setBusqueda] = useState('')
   const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('mes')
   const [filtroCocinera, setFiltroCocinera] = useState<number | null>(null)
+  const [filtroTipo, setFiltroTipo] = useState<FiltroTipo>('todos')
+  const [filtroColegio, setFiltroColegio] = useState<number | null>(null)
   const [expandidas, setExpandidas] = useState<Set<number>>(new Set())
 
   // Obtener lista única de cocineras
@@ -59,6 +68,19 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
     historialInicial.forEach((a) => {
       if (!mapa.has(a.cocineraId)) {
         mapa.set(a.cocineraId, a.cocinera.name)
+      }
+    })
+    return Array.from(mapa.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [historialInicial])
+
+  // Obtener lista única de colegios
+  const colegios = useMemo(() => {
+    const mapa = new Map<number, string>()
+    historialInicial.forEach((a) => {
+      if (a.colegio && !mapa.has(a.colegio.id)) {
+        mapa.set(a.colegio.id, a.colegio.name)
       }
     })
     return Array.from(mapa.entries())
@@ -75,6 +97,12 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
       // Filtro de cocinera
       if (filtroCocinera !== null && a.cocineraId !== filtroCocinera) return false
 
+      // Filtro de tipo
+      if (filtroTipo !== 'todos' && a.tipo !== filtroTipo) return false
+
+      // Filtro de colegio
+      if (filtroColegio !== null && (!a.colegio || a.colegio.id !== filtroColegio)) return false
+
       // Filtro de búsqueda
       if (busqueda.trim()) {
         const termino = busqueda.toLowerCase()
@@ -86,7 +114,7 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
 
       return true
     })
-  }, [historialInicial, filtroFecha, filtroCocinera, busqueda])
+  }, [historialInicial, filtroFecha, filtroCocinera, filtroTipo, filtroColegio, busqueda])
 
   // Agrupar por cocinera
   const asignacionesAgrupadas = useMemo(() => {
@@ -156,7 +184,7 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Filtro de fecha */}
             <div>
               <label className="block text-on-surface text-sm font-semibold mb-2">Período</label>
@@ -183,6 +211,39 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
               >
                 <option value="">Todas las cocineras</option>
                 {cocineras.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtro de tipo */}
+            <div>
+              <label className="block text-on-surface text-sm font-semibold mb-2">Tipo</label>
+              <select
+                value={filtroTipo}
+                onChange={(e) => setFiltroTipo(e.target.value as FiltroTipo)}
+                className="w-full px-4 py-2.5 rounded-lg border border-outline-variant/20 bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              >
+                {OPCIONES_TIPO.map((op) => (
+                  <option key={op.valor} value={op.valor}>
+                    {op.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtro de colegio */}
+            <div>
+              <label className="block text-on-surface text-sm font-semibold mb-2">Colegio</label>
+              <select
+                value={filtroColegio ?? ''}
+                onChange={(e) => setFiltroColegio(e.target.value ? parseInt(e.target.value) : null)}
+                className="w-full px-4 py-2.5 rounded-lg border border-outline-variant/20 bg-surface text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+              >
+                <option value="">Todos los colegios</option>
+                {colegios.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
@@ -248,6 +309,11 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
+                              <span className={`material-symbols-outlined text-[16px] icon-fill ${
+                                asignacion.tipo === 'agregado' ? 'text-primary' : 'text-secondary'
+                              }`}>
+                                {asignacion.tipo === 'agregado' ? 'add_circle' : 'assignment_return'}
+                              </span>
                               <p className="text-on-surface font-semibold">{asignacion.utensilio.name}</p>
                               {asignacion.utensilio.sku && (
                                 <span className="text-outline text-xs font-mono bg-surface px-2 py-0.5 rounded">
@@ -264,6 +330,20 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
                                 minute: '2-digit',
                               })}
                             </p>
+                            <div className="flex flex-wrap gap-1.5 mb-2">
+                              <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                asignacion.tipo === 'agregado'
+                                  ? 'bg-primary/10 text-primary'
+                                  : 'bg-secondary/10 text-secondary'
+                              }`}>
+                                {asignacion.tipo === 'agregado' ? 'Agregado' : 'Entregado'}
+                              </span>
+                              {asignacion.colegio && (
+                                <span className="text-xs font-semibold px-2 py-1 rounded-full bg-tertiary/10 text-tertiary">
+                                  {asignacion.colegio.name}
+                                </span>
+                              )}
+                            </div>
                             {asignacion.notas && (
                               <p className="text-on-surface-variant text-xs bg-surface px-3 py-2 rounded-lg border border-outline-variant/20">
                                 <span className="font-semibold">Notas:</span> {asignacion.notas}

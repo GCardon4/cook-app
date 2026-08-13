@@ -78,7 +78,7 @@ Este esquema soporta múltiples clientes que presentan visualizaciones y clics c
 
 ---
 
-## inventory (Inventario Utensilios)
+## inventory (Inventario Utensilios - Estado actual)
 
 
 | Campo       | Tipo    | Descripción         |
@@ -86,7 +86,8 @@ Este esquema soporta múltiples clientes que presentan visualizaciones y clics c
 | id          | int8    | PK                  |
 | cook_id     | int8    | FK → cook           |
 | utensils_id | int8    | FK → utensils       |
-| stock       | numeric | Código QR           |
+| stock       | numeric | Cantidad actual     |
+| notes       | text    | Notas de devolución |
 | created_at  | date    | Fecha de creación   |
 | updated_at  | date    | Fecha actualizacion |
 
@@ -101,3 +102,22 @@ Este esquema soporta múltiples clientes que presentan visualizaciones y clics c
 | cook_id    | int8 | FK → cook       |
 | school_id  | int8 | FK → school     |
 | created_at | date | Fecha Creación  |
+
+---
+
+## inventory_movements (Historial de movimientos de utensilios)
+
+Ledger de solo-inserción que registra cada evento de escaneo (agregado/entregado) con fecha, colegio y notas. Independiente del estado mutable de `inventory`.
+
+**Nota:** Esta tabla debe ser creada manualmente en Supabase ejecutando el SQL en `docs/MIGRATION_inventory_movements.sql`.
+
+| Campo       | Tipo    | Descripción              |
+| ----------- | ------- | ------------------------ |
+| id          | int8    | PK                       |
+| cook_id     | int8    | FK → cook                |
+| utensils_id | int8    | FK → utensils            |
+| school_id   | int8    | FK → school (nullable)   |
+| type        | text    | 'agregado' o 'entregado' |
+| quantity    | numeric | Cantidad movida          |
+| notes       | text    | Notas (nullable)         |
+| created_at  | date    | Fecha del movimiento     |

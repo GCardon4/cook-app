@@ -8,15 +8,17 @@ export type AsignacionHistorial = {
   utensilioId: number
   utensilio: { id: number; name: string; sku: string | null }
   cantidad: number
+  tipo: 'agregado' | 'entregado'
   fechaAsignacion: string
   notas: string | null
+  colegio: { id: number; name: string } | null
 }
 
 async function obtenerHistorialAsignaciones(): Promise<AsignacionHistorial[]> {
   const supabase = await crearClienteServidor()
 
   const { data, error } = await supabase
-    .from('inventory')
+    .from('inventory_movements')
     .select(
       `
       id,
@@ -24,25 +26,32 @@ async function obtenerHistorialAsignaciones(): Promise<AsignacionHistorial[]> {
       cook:cook_id(id, name),
       utensils_id,
       utensils:utensils_id(id, name, sku),
-      stock,
+      quantity,
+      type,
       created_at,
-      notes
+      notes,
+      school:school_id(id, name)
     `
     )
     .order('created_at', { ascending: false })
 
   if (error) return []
 
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    cocineraId: row.cook_id,
-    cocinera: row.cook,
-    utensilioId: row.utensils_id,
-    utensilio: row.utensils,
-    cantidad: row.stock ?? 1,
-    fechaAsignacion: row.created_at,
-    notas: row.notes,
-  }))
+  return (data ?? []).map((row: any) => {
+    const school = Array.isArray(row.school) ? row.school[0] : row.school
+    return {
+      id: row.id,
+      cocineraId: row.cook_id,
+      cocinera: row.cook,
+      utensilioId: row.utensils_id,
+      utensilio: row.utensils,
+      cantidad: row.quantity ?? 1,
+      tipo: row.type as 'agregado' | 'entregado',
+      fechaAsignacion: row.created_at,
+      notas: row.notes,
+      colegio: school as { id: number; name: string } | null,
+    }
+  })
 }
 
 export default async function PaginaAsignaciones() {

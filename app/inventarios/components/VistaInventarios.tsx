@@ -5,12 +5,12 @@ import {
   agregarPorEscaneo,
   entregarPorEscaneo,
   obtenerInventarioCocinera,
-  actualizarNotasInventario,
+  actualizarNotasMovimiento,
 } from '../actions'
 import { CaptorNotasVoz } from './CaptorNotasVoz'
 import type { ItemInventarioCocinera } from '../actions'
 
-type Vista = 'cocineras' | 'accion' | 'agregar' | 'entrega'
+type Vista = 'cocineras' | 'accion' | 'seleccionarColegio' | 'agregar' | 'entrega'
 
 export type CocineraResumen = {
   id: number
@@ -19,6 +19,7 @@ export type CocineraResumen = {
   phone: number | null
   totalTipos: number
   totalUnidades: number
+  escuelas: { id: number; name: string }[]
 }
 
 type ToastInfo = { tipo: 'ok' | 'error'; msg: string } | null
@@ -113,6 +114,8 @@ function reproducirBeep() {
 export default function VistaInventarios({ cocineras }: { cocineras: CocineraResumen[] }) {
   const [vista, setVista] = useState<Vista>('cocineras')
   const [cocineraActiva, setCocineraActiva] = useState<CocineraResumen | null>(null)
+  const [colegioSeleccionado, setColegioSeleccionado] = useState<number | null>(null)
+  const [modoEscaneo, setModoEscaneo] = useState<'agregar' | 'entrega' | null>(null)
 
   // Búsqueda y voz
   const [busqueda, setBusqueda] = useState('')
@@ -132,7 +135,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
 
   // Notas de devolución por último item escaneado
   const [mostrarCaptorNotas, setMostrarCaptorNotas] = useState(false)
-  const [ultimoItemEscaneado, setUltimoItemEscaneado] = useState<{ sku: string; nombre: string; inventarioId: number; utensilioId: number } | null>(null)
+  const [ultimoItemEscaneado, setUltimoItemEscaneado] = useState<{ sku: string; nombre: string; movimientoId: number; utensilioId: number } | null>(null)
 
   // Cámara
   const [camaraAbierta, setCamaraAbierta] = useState(false)
@@ -181,15 +184,15 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
 
   // Procesar código escaneado según el modo activo
   const procesarEscaneo = useCallback(
-    (codigo: string, modo: 'agregar' | 'entrega', cocinera: CocineraResumen, notas?: string) => {
+    (codigo: string, modo: 'agregar' | 'entrega', cocinera: CocineraResumen, schoolId?: number | null, notas?: string) => {
       const sku = codigo.trim().toUpperCase()
       if (!sku) { mostrarToast('error', 'Código no válido.'); return }
 
       startTransition(async () => {
         const resultado =
           modo === 'agregar'
-            ? await agregarPorEscaneo(cocinera.id, sku)
-            : await entregarPorEscaneo(cocinera.id, sku, notas)
+            ? await agregarPorEscaneo(cocinera.id, sku, schoolId)
+            : await entregarPorEscaneo(cocinera.id, sku, notas, schoolId)
 
         if (resultado?.exito) {
           mostrarToast('ok', resultado.exito)
@@ -209,7 +212,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
               setUltimoItemEscaneado({
                 sku,
                 nombre: resultado.utensilio,
-                inventarioId: resultado.inventarioId || 0,
+                movimientoId: resultado.movimientoId || 0,
                 utensilioId: resultado.utensilioId || 0,
               })
               setMostrarCaptorNotas(true)
@@ -237,13 +240,13 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     [mostrarToast]
   )
 
-  // Actualizar ref en cada render para capturar vista y cocinera frescos
+  // Actualizar ref en cada render para capturar vista, cocinera y colegio frescos
   useEffect(() => {
-    if (!cocineraActiva) return
+    if (!cocineraActiva || vista !== 'agregar' && vista !== 'entrega') return
     const modoActual = vista as 'agregar' | 'entrega'
     procesarRef.current = (codigo: string) =>
-      procesarEscaneo(codigo, modoActual, cocineraActiva)
-  })
+      procesarEscaneo(codigo, modoActual, cocineraActiva, colegioSeleccionado)
+  }, [vista, cocineraActiva, colegioSeleccionado, procesarEscaneo])
 
   // Cargar inventario en ACCION
   useEffect(() => {
@@ -358,17 +361,32 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   }
 
   const irAModo = async (modo: 'agregar' | 'entrega') => {
+    if (!cocineraActiva) return
+    setModoEscaneo(modo)
     setHistorial([])
     setToast(null)
     setInventarioActual([])
     setMostrarCaptorNotas(false)
     setUltimoItemEscaneado(null)
-    setVista(modo)
-    if (cocineraActiva) {
+
+    // Manejar selección de colegio
+    if (cocineraActiva.escuelas.length === 0) {
+      setColegioSeleccionado(null)
+      setVista(modo)
       setCargandoInventario(true)
       const items = await obtenerInventarioCocinera(cocineraActiva.id)
       setInventarioActual(items)
       setCargandoInventario(false)
+    } else if (cocineraActiva.escuelas.length === 1) {
+      setColegioSeleccionado(cocineraActiva.escuelas[0].id)
+      setVista(modo)
+      setCargandoInventario(true)
+      const items = await obtenerInventarioCocinera(cocineraActiva.id)
+      setInventarioActual(items)
+      setCargandoInventario(false)
+    } else {
+      // Múltiples colegios: mostrar pantalla de selección
+      setVista('seleccionarColegio')
     }
   }
 
@@ -379,6 +397,8 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     setInventarioActual([])
     setMostrarCaptorNotas(false)
     setUltimoItemEscaneado(null)
+    setColegioSeleccionado(null)
+    setModoEscaneo(null)
     setVista('accion')
   }
 
@@ -388,18 +408,20 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     setToast(null)
     setHistorial([])
     setInventarioActual([])
+    setColegioSeleccionado(null)
+    setModoEscaneo(null)
     setVista('cocineras')
   }
 
   const guardarNotasEntrega = useCallback(
     (notas: string) => {
-      if (!ultimoItemEscaneado || ultimoItemEscaneado.inventarioId === 0) {
+      if (!ultimoItemEscaneado || ultimoItemEscaneado.movimientoId === 0) {
         setMostrarCaptorNotas(false)
         return
       }
 
       startTransition(async () => {
-        const resultado = await actualizarNotasInventario(ultimoItemEscaneado.inventarioId, notas)
+        const resultado = await actualizarNotasMovimiento(ultimoItemEscaneado.movimientoId, notas)
         if (resultado?.exito) {
           mostrarToast('ok', 'Notas guardadas correctamente.')
         } else if (resultado?.error) {
@@ -557,6 +579,81 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
       )}
     </div>
   )
+
+  // ─── VISTA: Seleccionar Colegio (cuando hay múltiples) ───────────────────────
+  if (vista === 'seleccionarColegio' && cocineraActiva && modoEscaneo) {
+    const esAgregar = modoEscaneo === 'agregar'
+    const modoLabel = esAgregar ? 'AGREGAR' : 'ENTREGA'
+
+    return (
+      <div className="max-w-sm mx-auto">
+        <button onClick={volverAAccion} className="flex items-center gap-2 text-on-surface-variant hover:text-on-surface mb-6 transition-colors">
+          <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+          <span className="text-sm font-medium">Volver</span>
+        </button>
+
+        <div className={`flex items-center justify-between px-5 py-4 rounded-2xl mb-5 ${
+          esAgregar ? 'bg-primary text-on-primary' : 'bg-secondary text-on-secondary'
+        }`}>
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-[28px] icon-fill">
+              {esAgregar ? 'add_circle' : 'assignment_return'}
+            </span>
+            <div>
+              <p className="font-black text-lg leading-tight">{modoLabel}</p>
+              <p className={`text-sm ${esAgregar ? 'text-on-primary/80' : 'text-on-secondary/80'}`}>{cocineraActiva.name}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mb-6">
+          <label className="block text-on-surface text-sm font-semibold mb-3">Selecciona el colegio</label>
+          <div className="space-y-2">
+            {cocineraActiva.escuelas.map((escuela) => (
+              <button
+                key={escuela.id}
+                onClick={async () => {
+                  setColegioSeleccionado(escuela.id)
+                  setCargandoInventario(true)
+                  const items = await obtenerInventarioCocinera(cocineraActiva.id)
+                  setInventarioActual(items)
+                  setCargandoInventario(false)
+                  setVista(modoEscaneo)
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border-2 active:scale-[0.98] transition-all text-left group ${
+                  colegioSeleccionado === escuela.id
+                    ? esAgregar
+                      ? 'bg-primary/10 border-primary'
+                      : 'bg-secondary/10 border-secondary'
+                    : 'bg-surface-container-lowest border-outline-variant/20 hover:border-primary hover:bg-primary/5'
+                }`}
+              >
+                <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                  colegioSeleccionado === escuela.id
+                    ? esAgregar
+                      ? 'border-primary bg-primary'
+                      : 'border-secondary bg-secondary'
+                    : 'border-outline-variant'
+                }`}>
+                  {colegioSeleccionado === escuela.id && (
+                    <span className={`material-symbols-outlined text-[14px] ${esAgregar ? 'text-on-primary' : 'text-on-secondary'}`}>check</span>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-on-surface font-semibold">{escuela.name}</p>
+                </div>
+                <span className={`material-symbols-outlined text-[20px] group-hover:translate-x-1 transition-transform ${
+                  esAgregar ? 'text-primary' : 'text-secondary'
+                }`}>
+                  chevron_right
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   // ─── VISTA: Botones AGREGAR / ENTREGA ─────────────────────────────────────────
   if (vista === 'accion' && cocineraActiva) return (

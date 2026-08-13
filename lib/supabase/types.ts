@@ -44,6 +44,7 @@ export type RegistroInventario = {
   id: number
   cook_id: number
   utensils_id: number
+  notes: string | null
   created_at: string
   updated_at: string
 }
@@ -81,4 +82,15 @@ export type InventarioConDetalle = {
   updated_at: string
   utensils: Pick<Utensilio, 'id' | 'name' | 'sku' | 'description'> | null
   cook: Pick<Cocinera, 'id' | 'name'> | null
+}
+
+export type MovimientoInventario = {
+  id: number
+  cook_id: number
+  utensils_id: number
+  school_id: number | null
+  type: 'agregado' | 'entregado'
+  quantity: number
+  notes: string | null
+  created_at: string
 }

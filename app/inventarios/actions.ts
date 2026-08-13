@@ -5,6 +5,23 @@ import { revalidatePath } from 'next/cache'
 
 export type EstadoAsignacion = { error?: string; exito?: string } | null
 
+// Obtener colegios asignados a una cocinera
+export async function obtenerEscuelasCocinera(
+  cocineraId: number
+): Promise<{ id: number; name: string }[]> {
+  const supabase = await crearClienteServidor()
+
+  const { data } = await supabase
+    .from('cook_school')
+    .select('school:school_id(id, name)')
+    .eq('cook_id', cocineraId)
+
+  return (data ?? []).map((row) => {
+    const s = Array.isArray(row.school) ? row.school[0] : row.school
+    return { id: (s as { id: number; name: string } | null)?.id ?? 0, name: (s as { id: number; name: string } | null)?.name ?? '' }
+  }).filter((s) => s.id > 0)
+}
+
 // Asignar utensilio a cocinera desde la vista de inventario
 export async function asignarDesdeInventario(
   utensilioId: number,
@@ -84,12 +101,14 @@ export type ResultadoEscaneo = {
   utensilio?: string
   inventarioId?: number
   utensilioId?: number
+  movimientoId?: number
 } | null
 
 // Agregar 1 unidad al inventario de una cocinera escaneando por SKU
 export async function agregarPorEscaneo(
   cocineraId: number,
-  sku: string
+  sku: string,
+  schoolId?: number | null
 ): Promise<ResultadoEscaneo> {
   const supabase = await crearClienteServidor()
 
@@ -128,14 +147,34 @@ export async function agregarPorEscaneo(
     if (error) return { error: 'Error al crear asignación.' }
   }
 
+  // Registrar movimiento en el historial
+  const { data: movimiento, error: errMovimiento } = await supabase
+    .from('inventory_movements')
+    .insert({
+      cook_id: cocineraId,
+      utensils_id: utensilio.id,
+      school_id: schoolId ?? null,
+      type: 'agregado',
+      quantity: 1,
+    })
+    .select('id')
+    .single()
+
+  if (errMovimiento) {
+    console.error('Error registrando movimiento:', errMovimiento.message)
+    // No retornar error, el movimiento es secundario
+  }
+
   revalidatePath('/inventarios')
   revalidatePath('/inventarios/asignaciones')
   revalidatePath('/inventarios/utensilios')
+  revalidatePath('/admin/asignaciones')
   return {
     exito: `+1 ${utensilio.name}`,
     utensilio: utensilio.name as string,
     inventarioId: existente?.id || 0,
     utensilioId: utensilio.id,
+    movimientoId: (movimiento?.id as number) ?? 0,
   }
 }
 
@@ -143,7 +182,8 @@ export async function agregarPorEscaneo(
 export async function entregarPorEscaneo(
   cocineraId: number,
   sku: string,
-  notas?: string
+  notas?: string,
+  schoolId?: number | null
 ): Promise<ResultadoEscaneo> {
   const supabase = await crearClienteServidor()
 
@@ -178,33 +218,54 @@ export async function entregarPorEscaneo(
     if (error) return { error: 'Error al actualizar asignación.' }
   }
 
+  // Registrar movimiento en el historial
+  const { data: movimiento, error: errMovimiento } = await supabase
+    .from('inventory_movements')
+    .insert({
+      cook_id: cocineraId,
+      utensils_id: utensilio.id,
+      school_id: schoolId ?? null,
+      type: 'entregado',
+      quantity: 1,
+      notes: notas ?? null,
+    })
+    .select('id')
+    .single()
+
+  if (errMovimiento) {
+    console.error('Error registrando movimiento:', errMovimiento.message)
+    // No retornar error, el movimiento es secundario
+  }
+
   revalidatePath('/inventarios')
   revalidatePath('/inventarios/asignaciones')
   revalidatePath('/inventarios/utensilios')
+  revalidatePath('/admin/asignaciones')
   return {
     exito: `-1 ${utensilio.name}`,
     utensilio: utensilio.name as string,
     inventarioId: inv.id,
     utensilioId: utensilio.id,
+    movimientoId: (movimiento?.id as number) ?? 0,
   }
 }
 
-// Actualizar notas de un registro de inventario
-export async function actualizarNotasInventario(
-  inventarioId: number,
+// Actualizar notas de un movimiento en el historial
+export async function actualizarNotasMovimiento(
+  movimientoId: number,
   notas: string
 ): Promise<EstadoAsignacion> {
   const supabase = await crearClienteServidor()
 
   const { error } = await supabase
-    .from('inventory')
+    .from('inventory_movements')
     .update({ notes: notas })
-    .eq('id', inventarioId)
+    .eq('id', movimientoId)
 
   if (error) return { error: 'Error al guardar las notas.' }
 
   revalidatePath('/inventarios')
   revalidatePath('/inventarios/asignaciones')
-  revalidatePath('/inventarios/utensilios')
+  revalidatePath('/admin/asignaciones')
   return { exito: 'Notas guardadas correctamente.' }
 }
