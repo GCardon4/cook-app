@@ -83,6 +83,7 @@ export type ResultadoEscaneo = {
   error?: string
   utensilio?: string
   inventarioId?: number
+  utensilioId?: number
 } | null
 
 // Agregar 1 unidad al inventario de una cocinera escaneando por SKU
@@ -130,7 +131,12 @@ export async function agregarPorEscaneo(
   revalidatePath('/inventarios')
   revalidatePath('/inventarios/asignaciones')
   revalidatePath('/inventarios/utensilios')
-  return { exito: `+1 ${utensilio.name}`, utensilio: utensilio.name as string }
+  return {
+    exito: `+1 ${utensilio.name}`,
+    utensilio: utensilio.name as string,
+    inventarioId: existente?.id || 0,
+    utensilioId: utensilio.id,
+  }
 }
 
 // Entregar (devolver) 1 unidad de una cocinera escaneando por SKU
@@ -159,7 +165,7 @@ export async function entregarPorEscaneo(
   if (!inv) return { error: `${utensilio.name}: no asignado a esta cocinera.` }
 
   const stockActual = inv.stock ?? 1
-  const updateData = notas ? { stock: stockActual - 1, notes: notas } : { stock: stockActual - 1 }
+  const updateData = { stock: stockActual - 1 }
 
   if (stockActual <= 1) {
     const { error } = await supabase.from('inventory').delete().eq('id', inv.id)
@@ -175,7 +181,12 @@ export async function entregarPorEscaneo(
   revalidatePath('/inventarios')
   revalidatePath('/inventarios/asignaciones')
   revalidatePath('/inventarios/utensilios')
-  return { exito: `-1 ${utensilio.name}`, utensilio: utensilio.name as string, inventarioId: inv.id }
+  return {
+    exito: `-1 ${utensilio.name}`,
+    utensilio: utensilio.name as string,
+    inventarioId: inv.id,
+    utensilioId: utensilio.id,
+  }
 }
 
 // Actualizar notas de un registro de inventario

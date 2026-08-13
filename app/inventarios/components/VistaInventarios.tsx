@@ -132,7 +132,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
 
   // Notas de devolución por último item escaneado
   const [mostrarCaptorNotas, setMostrarCaptorNotas] = useState(false)
-  const [ultimoItemEscaneado, setUltimoItemEscaneado] = useState<{ sku: string; nombre: string; inventarioId: number } | null>(null)
+  const [ultimoItemEscaneado, setUltimoItemEscaneado] = useState<{ sku: string; nombre: string; inventarioId: number; utensilioId: number } | null>(null)
 
   // Cámara
   const [camaraAbierta, setCamaraAbierta] = useState(false)
@@ -210,6 +210,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
                 sku,
                 nombre: resultado.utensilio,
                 inventarioId: resultado.inventarioId || 0,
+                utensilioId: resultado.utensilioId || 0,
               })
               setMostrarCaptorNotas(true)
             } else {
@@ -896,11 +897,13 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
         )}
 
         {/* Captor de notas para devoluciones */}
-        {mostrarCaptorNotas && esEntrega && (
+        {mostrarCaptorNotas && esEntrega && ultimoItemEscaneado && (
           <CaptorNotasVoz
             onGuardarNotas={guardarNotasEntrega}
             deshabilitado={false}
             tieneNotas={false}
+            nombreUtensilio={ultimoItemEscaneado.nombre}
+            utensilioId={ultimoItemEscaneado.utensilioId}
           />
         )}
       </div>

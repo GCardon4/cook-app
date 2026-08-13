@@ -6,9 +6,17 @@ type CaptorNotasVozProps = {
   onGuardarNotas: (notas: string) => void
   deshabilitado?: boolean
   tieneNotas?: boolean
+  nombreUtensilio?: string
+  utensilioId?: number
 }
 
-export function CaptorNotasVoz({ onGuardarNotas, deshabilitado = false, tieneNotas = false }: CaptorNotasVozProps) {
+export function CaptorNotasVoz({
+  onGuardarNotas,
+  deshabilitado = false,
+  tieneNotas = false,
+  nombreUtensilio = '',
+  utensilioId,
+}: CaptorNotasVozProps) {
   const [notas, setNotas] = useState('')
   const [escuchando, setEscuchando] = useState(false)
   const [errorVoz, setErrorVoz] = useState<string | null>(null)
@@ -88,7 +96,14 @@ export function CaptorNotasVoz({ onGuardarNotas, deshabilitado = false, tieneNot
       <div className="bg-surface-container-lowest rounded-2xl shadow-2xl max-w-sm w-full max-h-[90vh] sm:max-h-[80vh] overflow-y-auto flex flex-col">
         {/* Header */}
         <div className="sticky top-0 flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-outline-variant/20 bg-surface-container-lowest shrink-0">
-          <p className="text-on-surface font-bold text-base sm:text-lg">Notas de devolución</p>
+          <div>
+            <p className="text-on-surface font-bold text-base sm:text-lg">Notas de devolución</p>
+            {nombreUtensilio && (
+              <p className="text-on-surface-variant text-xs sm:text-sm mt-0.5">
+                Utensilio: <span className="font-semibold text-secondary">{nombreUtensilio}</span>
+              </p>
+            )}
+          </div>
           <button
             onClick={() => {
               setMostrandoForm(false)
