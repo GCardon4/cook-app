@@ -5,7 +5,9 @@ import {
   agregarPorEscaneo,
   entregarPorEscaneo,
   obtenerInventarioCocinera,
+  actualizarNotasInventario,
 } from '../actions'
+import { CaptorNotasVoz } from './CaptorNotasVoz'
 import type { ItemInventarioCocinera } from '../actions'
 
 type Vista = 'cocineras' | 'accion' | 'agregar' | 'entrega'
@@ -128,6 +130,10 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   const [cargandoInventario, setCargandoInventario] = useState(false)
   const [inventarioAccion, setInventarioAccion] = useState<ItemInventarioCocinera[]>([])
 
+  // Notas de devolución por último item escaneado
+  const [mostrarCaptorNotas, setMostrarCaptorNotas] = useState(false)
+  const [ultimoItemEscaneado, setUltimoItemEscaneado] = useState<{ sku: string; nombre: string; inventarioId: number } | null>(null)
+
   // Cámara
   const [camaraAbierta, setCamaraAbierta] = useState(false)
   const [camaraActiva, setCamaraActiva] = useState(false)
@@ -175,7 +181,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
 
   // Procesar código escaneado según el modo activo
   const procesarEscaneo = useCallback(
-    (codigo: string, modo: 'agregar' | 'entrega', cocinera: CocineraResumen) => {
+    (codigo: string, modo: 'agregar' | 'entrega', cocinera: CocineraResumen, notas?: string) => {
       const sku = codigo.trim().toUpperCase()
       if (!sku) { mostrarToast('error', 'Código no válido.'); return }
 
@@ -183,7 +189,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
         const resultado =
           modo === 'agregar'
             ? await agregarPorEscaneo(cocinera.id, sku)
-            : await entregarPorEscaneo(cocinera.id, sku)
+            : await entregarPorEscaneo(cocinera.id, sku, notas)
 
         if (resultado?.exito) {
           mostrarToast('ok', resultado.exito)
@@ -199,6 +205,13 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
                     : [item]
                 )
               )
+              // En modo entrega, mostrar captor de notas después del escaneo
+              setUltimoItemEscaneado({
+                sku,
+                nombre: resultado.utensilio,
+                inventarioId: resultado.inventarioId || 0,
+              })
+              setMostrarCaptorNotas(true)
             } else {
               // AGREGAR: incrementar si existe, añadir si es nuevo
               setInventarioActual((prev) => {
@@ -327,8 +340,11 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
   }, [])
 
   useEffect(() => {
-    if (camaraAbierta) iniciarCamara()
-    return () => { detenerCamara() }
+    if (!camaraAbierta) {
+      detenerCamara()
+      return
+    }
+    iniciarCamara()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camaraAbierta, camaraSeleccionada])
 
@@ -344,6 +360,8 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     setHistorial([])
     setToast(null)
     setInventarioActual([])
+    setMostrarCaptorNotas(false)
+    setUltimoItemEscaneado(null)
     setVista(modo)
     if (cocineraActiva) {
       setCargandoInventario(true)
@@ -358,6 +376,8 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     setToast(null)
     setHistorial([])
     setInventarioActual([])
+    setMostrarCaptorNotas(false)
+    setUltimoItemEscaneado(null)
     setVista('accion')
   }
 
@@ -369,6 +389,26 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     setInventarioActual([])
     setVista('cocineras')
   }
+
+  const guardarNotasEntrega = useCallback(
+    (notas: string) => {
+      if (!ultimoItemEscaneado || ultimoItemEscaneado.inventarioId === 0) {
+        setMostrarCaptorNotas(false)
+        return
+      }
+
+      startTransition(async () => {
+        const resultado = await actualizarNotasInventario(ultimoItemEscaneado.inventarioId, notas)
+        if (resultado?.exito) {
+          mostrarToast('ok', 'Notas guardadas correctamente.')
+        } else if (resultado?.error) {
+          mostrarToast('error', resultado.error)
+        }
+        setMostrarCaptorNotas(false)
+      })
+    },
+    [ultimoItemEscaneado, mostrarToast]
+  )
 
   const cocinerasFiltradas = cocineras.filter(
     (c) =>
@@ -853,6 +893,15 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
             </div>
             <p className="text-on-surface-variant text-sm">Escanea el código de barras de un utensilio</p>
           </div>
+        )}
+
+        {/* Captor de notas para devoluciones */}
+        {mostrarCaptorNotas && esEntrega && (
+          <CaptorNotasVoz
+            onGuardarNotas={guardarNotasEntrega}
+            deshabilitado={false}
+            tieneNotas={false}
+          />
         )}
       </div>
     )

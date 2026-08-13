@@ -82,6 +82,7 @@ export type ResultadoEscaneo = {
   exito?: string
   error?: string
   utensilio?: string
+  inventarioId?: number
 } | null
 
 // Agregar 1 unidad al inventario de una cocinera escaneando por SKU
@@ -135,7 +136,8 @@ export async function agregarPorEscaneo(
 // Entregar (devolver) 1 unidad de una cocinera escaneando por SKU
 export async function entregarPorEscaneo(
   cocineraId: number,
-  sku: string
+  sku: string,
+  notas?: string
 ): Promise<ResultadoEscaneo> {
   const supabase = await crearClienteServidor()
 
@@ -157,13 +159,15 @@ export async function entregarPorEscaneo(
   if (!inv) return { error: `${utensilio.name}: no asignado a esta cocinera.` }
 
   const stockActual = inv.stock ?? 1
+  const updateData = notas ? { stock: stockActual - 1, notes: notas } : { stock: stockActual - 1 }
+
   if (stockActual <= 1) {
     const { error } = await supabase.from('inventory').delete().eq('id', inv.id)
     if (error) return { error: 'Error al eliminar asignación.' }
   } else {
     const { error } = await supabase
       .from('inventory')
-      .update({ stock: stockActual - 1 })
+      .update(updateData)
       .eq('id', inv.id)
     if (error) return { error: 'Error al actualizar asignación.' }
   }
@@ -171,5 +175,25 @@ export async function entregarPorEscaneo(
   revalidatePath('/inventarios')
   revalidatePath('/inventarios/asignaciones')
   revalidatePath('/inventarios/utensilios')
-  return { exito: `-1 ${utensilio.name}`, utensilio: utensilio.name as string }
+  return { exito: `-1 ${utensilio.name}`, utensilio: utensilio.name as string, inventarioId: inv.id }
+}
+
+// Actualizar notas de un registro de inventario
+export async function actualizarNotasInventario(
+  inventarioId: number,
+  notas: string
+): Promise<EstadoAsignacion> {
+  const supabase = await crearClienteServidor()
+
+  const { error } = await supabase
+    .from('inventory')
+    .update({ notes: notas })
+    .eq('id', inventarioId)
+
+  if (error) return { error: 'Error al guardar las notas.' }
+
+  revalidatePath('/inventarios')
+  revalidatePath('/inventarios/asignaciones')
+  revalidatePath('/inventarios/utensilios')
+  return { exito: 'Notas guardadas correctamente.' }
 }
