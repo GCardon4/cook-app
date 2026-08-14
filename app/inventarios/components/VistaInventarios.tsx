@@ -876,18 +876,21 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
           </div>
         )}
 
-        {/* Instrucciones */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-surface-container border border-outline-variant/20 mb-5">
-          <span className="material-symbols-outlined text-outline text-[20px] icon-fill shrink-0 mt-0.5">barcode_reader</span>
-          <div>
-            <p className="text-on-surface text-sm font-semibold">Escáner listo</p>
-            <p className="text-on-surface-variant text-xs mt-0.5">
-              {esAgregar
-                ? 'Cada escaneo agrega +1 unidad a esta cocinera. Escanear el mismo producto lo acumula.'
-                : 'Cada escaneo descuenta 1 unidad entregada por esta cocinera.'}
-            </p>
+        {/* Notas de entrega (solo en modo ENTREGA) */}
+        {esEntrega && (
+          <div className="mb-5">
+            <label className="block text-on-surface text-sm font-semibold mb-2">Notas de entrega</label>
+            <button
+              onClick={() => setMostrarCaptorNotas(true)}
+              disabled={false}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-secondary/10 border border-secondary/30 text-secondary hover:bg-secondary/20 active:scale-[0.98] transition-all text-sm font-semibold"
+              title="Agregar notas de devolución por voz o texto"
+            >
+              <span className="material-symbols-outlined text-[18px] icon-fill">mic</span>
+              <span>Agregar notas de entrega</span>
+            </button>
           </div>
-        </div>
+        )}
 
         {/* ── Lista del inventario actual (AGREGAR y ENTREGA) ──────────── */}
         <div className="mb-5">
