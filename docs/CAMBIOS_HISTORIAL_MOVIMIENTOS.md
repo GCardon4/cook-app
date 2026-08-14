@@ -115,8 +115,31 @@ npm run dev
 - El historial arranca vacío desde el día del despliegue
 - Los movimientos anteriores en `inventory` no se migran automáticamente (fueron sobrescritos por updates)
 
+## Campos Adicionales en `inventory`
+
+Para estadísticas más detalladas, se agregaron dos campos de fecha:
+
+- **add_date** (timestamptz): cuándo se agregó este utensilio a la cocinera
+- **return_date** (timestamptz): cuándo se entregó/devolvió
+
+### Comportamiento:
+- Al agregar: `add_date` = ahora, `return_date` = null
+- Al entregar parcial (stock > 1): `return_date` = ahora (cada entrega parcial marca una devolución)
+- Al entregar total (stock = 1): `add_date` + `return_date` se guarda antes de eliminar fila
+
+Esto permite análisis de:
+- Tiempo de tenencia por utensilio
+- Períodos de actividad
+- Ciclos completos (entrada → salida)
+
 ## Breaking Changes
 
 - Función `actualizarNotasInventario` removida → usar `actualizarNotasMovimiento`
 - El historial se lee de `inventory_movements`, no de `inventory`
 - Queries de reportes cambian: antes leían stock acumulado, ahora leen eventos discretos
+
+## Migraciones Requeridas
+
+Ejecutar en Supabase **en orden**:
+1. `docs/MIGRATION_inventory_movements.sql` (nueva tabla)
+2. `docs/MIGRATION_add_dates_to_inventory.sql` (nuevos campos en inventory)
