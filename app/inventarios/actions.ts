@@ -22,6 +22,22 @@ export async function obtenerEscuelasCocinera(
   }).filter((s) => s.id > 0)
 }
 
+// Resolver school_id de forma segura: validar que sea colegio actual, o usar el primero disponible
+async function resolverSchoolIdActual(
+  cocineraId: number,
+  schoolIdSugerido?: number | null
+): Promise<number | null> {
+  const escuelas = await obtenerEscuelasCocinera(cocineraId)
+
+  // Si se sugiere un school_id, validar que siga siendo asignado a esta cocinera
+  if (schoolIdSugerido && escuelas.some((e) => e.id === schoolIdSugerido)) {
+    return schoolIdSugerido
+  }
+
+  // Si no es válido, usar el primero disponible o null
+  return escuelas.length > 0 ? escuelas[0].id : null
+}
+
 // Asignar utensilio a cocinera desde la vista de inventario
 export async function asignarDesdeInventario(
   utensilioId: number,
@@ -147,13 +163,16 @@ export async function agregarPorEscaneo(
     if (error) return { error: 'Error al crear asignación.' }
   }
 
+  // Resolver school_id actual de forma segura (validar que siga siendo válido)
+  const schoolIdActual = await resolverSchoolIdActual(cocineraId, schoolId)
+
   // Registrar movimiento en el historial
   const { data: movimiento, error: errMovimiento } = await supabase
     .from('inventory_movements')
     .insert({
       cook_id: cocineraId,
       utensils_id: utensilio.id,
-      school_id: schoolId ?? null,
+      school_id: schoolIdActual,
       type: 'agregado',
       quantity: 1,
     })
@@ -225,13 +244,16 @@ export async function entregarPorEscaneo(
     if (error) return { error: 'Error al actualizar asignación.' }
   }
 
+  // Resolver school_id actual de forma segura (validar que siga siendo válido)
+  const schoolIdActual = await resolverSchoolIdActual(cocineraId, schoolId)
+
   // Registrar movimiento en el historial
   const { data: movimiento, error: errMovimiento } = await supabase
     .from('inventory_movements')
     .insert({
       cook_id: cocineraId,
       utensils_id: utensilio.id,
-      school_id: schoolId ?? null,
+      school_id: schoolIdActual,
       type: 'entregado',
       quantity: 1,
       notes: notas ?? null,
