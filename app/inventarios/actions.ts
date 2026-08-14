@@ -137,13 +137,13 @@ export async function agregarPorEscaneo(
   if (existente) {
     const { error } = await supabase
       .from('inventory')
-      .update({ stock: (existente.stock ?? 1) + 1 })
+      .update({ stock: (existente.stock ?? 1) + 1, return_date: null })
       .eq('id', existente.id)
     if (error) return { error: 'Error al actualizar asignación.' }
   } else {
     const { error } = await supabase
       .from('inventory')
-      .insert({ utensils_id: utensilio.id, cook_id: cocineraId, stock: 1 })
+      .insert({ utensils_id: utensilio.id, cook_id: cocineraId, stock: 1, add_date: new Date().toISOString() })
     if (error) return { error: 'Error al crear asignación.' }
   }
 
@@ -205,15 +205,22 @@ export async function entregarPorEscaneo(
   if (!inv) return { error: `${utensilio.name}: no asignado a esta cocinera.` }
 
   const stockActual = inv.stock ?? 1
-  const updateData = { stock: stockActual - 1 }
+  const ahora = new Date().toISOString()
 
   if (stockActual <= 1) {
-    const { error } = await supabase.from('inventory').delete().eq('id', inv.id)
-    if (error) return { error: 'Error al eliminar asignación.' }
+    // Última unidad: establecer return_date antes de eliminar
+    const { error: updateError } = await supabase
+      .from('inventory')
+      .update({ stock: 0, return_date: ahora })
+      .eq('id', inv.id)
+    if (updateError) return { error: 'Error al actualizar asignación.' }
+
+    const { error: deleteError } = await supabase.from('inventory').delete().eq('id', inv.id)
+    if (deleteError) return { error: 'Error al eliminar asignación.' }
   } else {
     const { error } = await supabase
       .from('inventory')
-      .update(updateData)
+      .update({ stock: stockActual - 1, return_date: ahora })
       .eq('id', inv.id)
     if (error) return { error: 'Error al actualizar asignación.' }
   }

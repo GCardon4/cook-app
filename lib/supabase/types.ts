@@ -45,6 +45,8 @@ export type RegistroInventario = {
   cook_id: number
   utensils_id: number
   notes: string | null
+  add_date: string | null
+  return_date: string | null
   created_at: string
   updated_at: string
 }

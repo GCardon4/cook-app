@@ -81,15 +81,17 @@ Este esquema soporta múltiples clientes que presentan visualizaciones y clics c
 ## inventory (Inventario Utensilios - Estado actual)
 
 
-| Campo       | Tipo    | Descripción         |
-| ----------- | ------- | ------------------- |
-| id          | int8    | PK                  |
-| cook_id     | int8    | FK → cook           |
-| utensils_id | int8    | FK → utensils       |
-| stock       | numeric | Cantidad actual     |
-| notes       | text    | Notas de devolución |
-| created_at  | date    | Fecha de creación   |
-| updated_at  | date    | Fecha actualizacion |
+| Campo       | Tipo       | Descripción              |
+| ----------- | ---------- | ------------------------ |
+| id          | int8       | PK                       |
+| cook_id     | int8       | FK → cook                |
+| utensils_id | int8       | FK → utensils            |
+| stock       | numeric    | Cantidad actual          |
+| notes       | text       | Notas de devolución      |
+| add_date    | timestampz | Fecha cuando se agregó   |
+| return_date | timestampz | Fecha cuando se entregó  |
+| created_at  | date       | Fecha de creación        |
+| updated_at  | date       | Fecha actualizacion      |
 
 ---
 
