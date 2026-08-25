@@ -11,6 +11,7 @@ export type AsignacionHistorial = {
   tipo: 'agregado' | 'entregado'
   fechaAsignacion: string
   notas: string | null
+  status: boolean
   colegio: { id: number; name: string } | null
 }
 
@@ -30,6 +31,7 @@ async function obtenerHistorialAsignaciones(): Promise<AsignacionHistorial[]> {
       type,
       created_at,
       notes,
+      status,
       school:school_id(id, name)
     `
     )
@@ -49,6 +51,7 @@ async function obtenerHistorialAsignaciones(): Promise<AsignacionHistorial[]> {
       tipo: row.type as 'agregado' | 'entregado',
       fechaAsignacion: row.created_at,
       notas: row.notes,
+      status: row.status ?? true,
       colegio: school as { id: number; name: string } | null,
     }
   })

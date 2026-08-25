@@ -9,6 +9,9 @@ App-web para un sistema de inventarios de utensilios para cocinas industriales, 
 -   la carpeta /docs con las información completa del proyecto
 -   Los Diseños siempre deben adaptarse en movil y web /Responsive Design
 -   Ideas de Diseños en la carpeta /ideas
+-   Comandos de la Terminal, enviar el comando y el usuario lo genera, una vez genera continua con el prompt
+-   Git Comandos solo los ejecuto por Administrador
+-   Documentacion solo la creo para informarte las necesidades
 
 
 ### Arquitectura del Proyecto

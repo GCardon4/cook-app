@@ -118,6 +118,7 @@ export type ResultadoEscaneo = {
   inventarioId?: number
   utensilioId?: number
   movimientoId?: number
+  status?: boolean
 } | null
 
 // Agregar 1 unidad al inventario de una cocinera escaneando por SKU
@@ -247,7 +248,7 @@ export async function entregarPorEscaneo(
   // Resolver school_id actual de forma segura (validar que siga siendo válido)
   const schoolIdActual = await resolverSchoolIdActual(cocineraId, schoolId)
 
-  // Registrar movimiento en el historial
+  // Registrar movimiento en el historial (status = Bueno por defecto)
   const { data: movimiento, error: errMovimiento } = await supabase
     .from('inventory_movements')
     .insert({
@@ -257,8 +258,9 @@ export async function entregarPorEscaneo(
       type: 'entregado',
       quantity: 1,
       notes: notas ?? null,
+      status: true,
     })
-    .select('id')
+    .select('id, status')
     .single()
 
   if (errMovimiento) {
@@ -276,6 +278,7 @@ export async function entregarPorEscaneo(
     inventarioId: inv.id,
     utensilioId: utensilio.id,
     movimientoId: (movimiento?.id as number) ?? 0,
+    status: (movimiento?.status as boolean) ?? true,
   }
 }
 
@@ -297,4 +300,24 @@ export async function actualizarNotasMovimiento(
   revalidatePath('/inventarios/asignaciones')
   revalidatePath('/admin/asignaciones')
   return { exito: 'Notas guardadas correctamente.' }
+}
+
+// Actualizar el estado (Bueno/Malo) de un movimiento de entrega
+export async function actualizarEstadoMovimiento(
+  movimientoId: number,
+  status: boolean
+): Promise<EstadoAsignacion> {
+  const supabase = await crearClienteServidor()
+
+  const { error } = await supabase
+    .from('inventory_movements')
+    .update({ status })
+    .eq('id', movimientoId)
+
+  if (error) return { error: 'Error al guardar el estado del utensilio.' }
+
+  revalidatePath('/inventarios')
+  revalidatePath('/inventarios/asignaciones')
+  revalidatePath('/admin/asignaciones')
+  return { exito: status ? 'Utensilio marcado como Bueno.' : 'Utensilio marcado como Malo.' }
 }

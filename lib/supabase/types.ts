@@ -94,5 +94,6 @@ export type MovimientoInventario = {
   type: 'agregado' | 'entregado'
   quantity: number
   notes: string | null
+  status: boolean
   created_at: string
 }

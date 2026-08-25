@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import type { AsignacionHistorial } from '../page'
+import { generarReportePDFCocinera } from '../generarReportePDF'
 
 type FiltroFecha = 'hoy' | 'semana' | 'mes' | 'semestre' | 'todos'
 type FiltroTipo = 'todos' | 'agregado' | 'entregado'
@@ -275,28 +276,41 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
                 className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 overflow-hidden"
               >
                 {/* Header de cocinera */}
-                <button
-                  onClick={() => toggleExpandida(cocineraId)}
-                  className="w-full px-5 py-4 flex items-center justify-between hover:bg-surface-container/50 transition-colors text-left"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold">
+                <div className="w-full px-5 py-4 flex items-center justify-between hover:bg-surface-container/50 transition-colors">
+                  <button
+                    onClick={() => toggleExpandida(cocineraId)}
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-primary/15 text-primary flex items-center justify-center font-bold shrink-0">
                       {cocinera.name.charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                      <p className="text-on-surface font-semibold">{cocinera.name}</p>
+                    <div className="min-w-0">
+                      <p className="text-on-surface font-semibold truncate">{cocinera.name}</p>
                       <p className="text-on-surface-variant text-xs">{asignaciones.length} asignación{asignaciones.length !== 1 ? 'es' : ''}</p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
+                  </button>
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full">
                       {asignaciones.reduce((acc, a) => acc + a.cantidad, 0)} unidades
                     </span>
-                    <span className={`material-symbols-outlined transition-transform ${esExpandida ? 'rotate-180' : ''}`}>
-                      expand_more
-                    </span>
+                    <button
+                      onClick={() => generarReportePDFCocinera(cocinera, asignaciones)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-secondary hover:bg-secondary/10 transition-colors"
+                      title={`Exportar informe PDF de ${cocinera.name}`}
+                    >
+                      <span className="material-symbols-outlined text-[20px] icon-fill">picture_as_pdf</span>
+                    </button>
+                    <button
+                      onClick={() => toggleExpandida(cocineraId)}
+                      className="w-8 h-8 flex items-center justify-center"
+                      title={esExpandida ? 'Contraer' : 'Expandir'}
+                    >
+                      <span className={`material-symbols-outlined transition-transform ${esExpandida ? 'rotate-180' : ''}`}>
+                        expand_more
+                      </span>
+                    </button>
                   </div>
-                </button>
+                </div>
 
                 {/* Contenido expandible */}
                 {esExpandida && (
@@ -338,6 +352,15 @@ export function VistaAsignaciones({ historialInicial }: { historialInicial: Asig
                               }`}>
                                 {asignacion.tipo === 'agregado' ? 'Agregado' : 'Entregado'}
                               </span>
+                              {asignacion.tipo === 'entregado' && (
+                                <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                                  asignacion.status
+                                    ? 'bg-primary/10 text-primary'
+                                    : 'bg-error-container text-on-error-container'
+                                }`}>
+                                  {asignacion.status ? 'Bueno' : 'Malo'}
+                                </span>
+                              )}
                               {asignacion.colegio && (
                                 <span className="text-xs font-semibold px-2 py-1 rounded-full bg-tertiary/10 text-tertiary">
                                   {asignacion.colegio.name}

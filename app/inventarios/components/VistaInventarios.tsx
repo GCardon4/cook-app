@@ -6,6 +6,7 @@ import {
   entregarPorEscaneo,
   obtenerInventarioCocinera,
   actualizarNotasMovimiento,
+  actualizarEstadoMovimiento,
 } from '../actions'
 import { CaptorNotasVoz } from './CaptorNotasVoz'
 import type { ItemInventarioCocinera } from '../actions'
@@ -135,7 +136,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
 
   // Notas de devolución por último item escaneado
   const [mostrarCaptorNotas, setMostrarCaptorNotas] = useState(false)
-  const [ultimoItemEscaneado, setUltimoItemEscaneado] = useState<{ sku: string; nombre: string; movimientoId: number; utensilioId: number } | null>(null)
+  const [ultimoItemEscaneado, setUltimoItemEscaneado] = useState<{ sku: string; nombre: string; movimientoId: number; utensilioId: number; status: boolean } | null>(null)
 
   // Cámara
   const [camaraAbierta, setCamaraAbierta] = useState(false)
@@ -214,6 +215,7 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
                 nombre: resultado.utensilio,
                 movimientoId: resultado.movimientoId || 0,
                 utensilioId: resultado.utensilioId || 0,
+                status: resultado.status ?? true,
               })
               setMostrarCaptorNotas(true)
             } else {
@@ -412,6 +414,24 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
     setModoEscaneo(null)
     setVista('cocineras')
   }
+
+  const cambiarEstadoUltimoItem = useCallback(
+    (nuevoEstado: boolean) => {
+      if (!ultimoItemEscaneado || ultimoItemEscaneado.movimientoId === 0) return
+
+      setUltimoItemEscaneado((prev) => (prev ? { ...prev, status: nuevoEstado } : prev))
+
+      startTransition(async () => {
+        const resultado = await actualizarEstadoMovimiento(ultimoItemEscaneado.movimientoId, nuevoEstado)
+        if (resultado?.exito) {
+          mostrarToast('ok', resultado.exito)
+        } else if (resultado?.error) {
+          mostrarToast('error', resultado.error)
+        }
+      })
+    },
+    [ultimoItemEscaneado, mostrarToast]
+  )
 
   const guardarNotasEntrega = useCallback(
     (notas: string) => {
@@ -873,6 +893,39 @@ export default function VistaInventarios({ cocineras }: { cocineras: CocineraRes
                 </select>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Estado del utensilio entregado (Bueno/Malo, solo en modo ENTREGA) */}
+        {esEntrega && ultimoItemEscaneado && (
+          <div className="mb-5">
+            <label className="block text-on-surface text-sm font-semibold mb-2">
+              Estado de {ultimoItemEscaneado.nombre}
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => cambiarEstadoUltimoItem(true)}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border active:scale-[0.98] transition-all text-sm font-semibold ${
+                  ultimoItemEscaneado.status
+                    ? 'bg-primary text-on-primary border-primary'
+                    : 'bg-surface-container-lowest border-outline-variant/30 text-on-surface-variant hover:border-primary'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px] icon-fill">check_circle</span>
+                <span>Bueno</span>
+              </button>
+              <button
+                onClick={() => cambiarEstadoUltimoItem(false)}
+                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl border active:scale-[0.98] transition-all text-sm font-semibold ${
+                  !ultimoItemEscaneado.status
+                    ? 'bg-error text-on-error border-error'
+                    : 'bg-surface-container-lowest border-outline-variant/30 text-on-surface-variant hover:border-error'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px] icon-fill">cancel</span>
+                <span>Malo</span>
+              </button>
+            </div>
           </div>
         )}
 

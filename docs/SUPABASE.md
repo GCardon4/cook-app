@@ -122,4 +122,5 @@ Ledger de solo-inserción que registra cada evento de escaneo (agregado/entregad
 | type        | text    | 'agregado' o 'entregado' |
 | quantity    | numeric | Cantidad movida          |
 | notes       | text    | Notas (nullable)         |
+| status      | bool    | Estado del utensilio: TRUE = Bueno, FALSE = Malo (default TRUE) |
 | created_at  | date    | Fecha del movimiento     |
